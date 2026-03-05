@@ -1,8 +1,32 @@
 {
   "$schema": "https://json.schemastore.org/nest-cli",
   "collection": "@nestjs/schematics",
-  "sourceRoot": "src",
+  "sourceRoot": "apps/roomi-api/src",
   "compilerOptions": {
-    "deleteOutDir": true
+    "deleteOutDir": true,
+    "webpack": true,
+    "tsConfigPath": "apps/roomi-api/tsconfig.app.json"
+  },
+  "monorepo": true,
+  "root": "apps/roomi-api",
+  "projects": {
+    "roomi": {
+      "type": "application",
+      "root": "apps/roomi-api",
+      "entryFile": "main",
+      "sourceRoot": "apps/roomi-api/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/roomi-api/tsconfig.app.json"
+      }
+    },
+    "roomi-batch": {
+      "type": "application",
+      "root": "apps/roomi-batch",
+      "entryFile": "main",
+      "sourceRoot": "apps/roomi-batch/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/roomi-batch/tsconfig.app.json"
+      }
+    }
   }
 }
