@@ -17,7 +17,7 @@ async function bootstrap() {
 
   app.useWebSocketAdapter(new WsAdapter(app));
   await app.listen(process.env.PORT_API ?? 3000);
-  console.log('NESTAR-API PORT:', process.env.PORT_API);
+  console.log('ROOMI-API PORT:', process.env.PORT_API);
 
   
 }

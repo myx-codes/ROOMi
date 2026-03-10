@@ -18,9 +18,14 @@ export class MemberInput {
     memberPassword: string;
 
     @IsNotEmpty()
-    @Matches(/^\+998\d{9}$/, { message: "Phone number must be valid (+998XXXXXXXXX)" })
     @Field(() => String)
-    memberPhone: string;
+    memberPhone: string
+
+    // @IsNotEmpty()
+    // // Regex tushuntirishi: + belgisi bilan boshlanadi va undan keyin 7 tadan 15 tagacha raqam keladi
+    // @Matches(/^\+\d{7,15}$/, { 
+    //     message: "Phone number must be a valid international format (+1234567890)" 
+    // })
 
     @IsOptional()
     @IsEnum(MemberType)
