@@ -1,0 +1,48 @@
+import { registerEnumType } from "@nestjs/graphql";
+
+export enum Message {
+    SOMETHING_WENT_WRONG = 'Something went wrong!',
+    NO_DATA_FOUND = 'No data found!',
+    CREATE_FAILED = 'Create failed!',
+    UPDATE_FAILED = 'Update failed!',
+    REMOVE_FAILED = 'Remove failed!',
+    UPLOAD_FAILED = 'Upload failed!',
+    BAD_REQUEST = 'Bad Request',
+    
+    // Member bilan bog'liq xabarlar
+    USED_NICK_OR_PHONE = "Already used member nick or phone",
+    NO_MEMBER_NICK = 'No member with that member nick!',
+    BLOCKED_USER = 'You have been blocked!',
+    WRONG_PASSWORD = 'Wrong password, try again!',
+    
+    // Auth & Permission xabarlari
+    NOT_AUTHENTICATED = 'You are not authenticated, please login first!',
+    TOKEN_NOT_EXIST = 'Bearer Token is not provided!',
+    ONLY_SPECIFIC_ROLES_ALLOWED = 'Allowed only for members with specific roles!',
+    NOT_ALLOWED_REQUEST = 'Not Allowed Request!',
+    
+    // File & Validation
+    PROVIDE_ALLOWED_FORMAT = 'Please provide jpg, jpeg or png images!',
+    SELF_SUBSCRIPTION_DENIED = 'Self subscription is denied!',
+}
+
+// Agar xatolik xabarlarini GraphQL orqali yuborsangiz, buni yoqing:
+registerEnumType(Message, {
+    name: 'Message',
+    description: 'Tizimdagi umumiy xatolik va ogohlantirish xabarlari',
+});
+
+/**
+ * Ma'lumotlarni saralash yo'nalishi
+ * ASC: 1 (O'sish tartibi)
+ * DESC: -1 (Kamayish tartibi)
+ */
+export enum Direction {
+    ASC = 1,
+    DESC = -1,
+}
+
+registerEnumType(Direction, {
+    name: 'Direction',
+    description: 'Saralash yo\'nalishi: ASC (1) yoki DESC (-1)',
+});
