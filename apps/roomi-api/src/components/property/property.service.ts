@@ -12,6 +12,8 @@ import { ViewService } from '../view/view.service';
 import { PropertyUpdate } from '../../libs/dto/property/property.update';
 import moment from 'moment';
 import { lookupMember, shapeIntoMongoObjectId } from '../../libs/config';
+import { LikeGroup } from '../../libs/enums/like.enum';
+import { LikeService } from '../like/like.service';
 
 @Injectable()
 export class PropertyService {
@@ -20,6 +22,7 @@ export class PropertyService {
         @InjectModel("Property") private readonly propertyModel: Model<Property>,
         private readonly memberService: MemberService,
         private readonly viewService: ViewService,
+        private readonly likeService: LikeService,
     ) {}
 
     public async createProperty(input: PropertyInput): Promise<Property> {
@@ -60,9 +63,9 @@ export class PropertyService {
             }
         }
 
-        // meLiked
-
-        // 2-TUZATISH: 'null as any' ishlatildi. Chunki getMember ObjectId kutadi, lekin biz null beryapmiz.
+        // MeLiked
+        const likeInput = { memberId: memberId, likeRefId: propertyId, likeGroup: LikeGroup.PROPERTY};
+        targetProperty.meLiked = await this.likeService.checkLikeExistance(likeInput);
         targetProperty.memberData = await this.memberService.getMember(null as any, targetProperty.memberId);
         
         return targetProperty;
@@ -77,8 +80,7 @@ export class PropertyService {
             propertyStatus: PropertyStatus.ACTIVE,
         };
         
-        // if (propertyStatus === PropertyStatus.SOLD) input.soldAt = moment().toDate();
-        // else if (propertyStatus === PropertyStatus.DELETE) input.deletedAt = moment().toDate();
+      
         if (propertyStatus === PropertyStatus.DELETE) deletedAt = moment().toDate();
         
         const result = await this.propertyModel
@@ -88,7 +90,7 @@ export class PropertyService {
         .exec();
         if (!result) throw new InternalServerErrorException(Message.UPDATE_FAILED);
         
-        // if (result.soldAt || result.deletedAt) {
+       
             if (deletedAt) {
                 await this.memberService.memberStatsEditor({
                     _id: memberId,

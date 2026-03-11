@@ -2,7 +2,7 @@ import { Field, Int, Float, ID, ObjectType } from "@nestjs/graphql";
 import { Types } from "mongoose"; // ObjectId xatoligini oldini olish uchun Types import qilindi
 import { PropertyLocation, PropertyStatus, PropertyType } from "../../enums/property.enum";
 import { Member, TotalCounter } from "../member/member";
-// import { MeLiked } from "../like/like";
+import { MeLiked } from "../like/like";
 
 @ObjectType()
 export class Property {
@@ -79,8 +79,8 @@ export class Property {
     @Field(() => Member, { nullable: true })
     memberData?: Member; // Obyekt egasi (Agent/Owner) haqida ma'lumot
     
-    // @Field(() => [MeLiked], { nullable: true })
-    // meLiked?: MeLiked[]; // Tizimga kirgan foydalanuvchi layk bosganmi yoki yo'q
+    @Field(() => [MeLiked], { nullable: true })
+    meLiked?: MeLiked[]; // Tizimga kirgan foydalanuvchi layk bosganmi yoki yo'q
 }
 
 @ObjectType()

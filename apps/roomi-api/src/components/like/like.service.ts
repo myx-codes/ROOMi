@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Like } from '../../libs/dto/like/like';
+import { Like, MeLiked } from '../../libs/dto/like/like';
 import { Model } from 'mongoose';
 import { LikeInput } from '../../libs/dto/like/like.input';
 import { Message } from '../../libs/enums/common.enum';
@@ -28,5 +28,13 @@ export class LikeService {
         }
         console.log(`-Like modifier ${modifier} -`);
         return modifier;
+    };
+
+
+
+    public async checkLikeExistance(input: LikeInput): Promise<MeLiked[]>{
+        const { memberId, likeRefId} = input;
+        const result = await this.LikeModel.findOne({memberId: memberId, likeRefId: likeRefId}).exec();
+        return result ? [{ memberId: memberId, likeRefId: likeRefId, myFavorite: true}]: [];
     }
 }
