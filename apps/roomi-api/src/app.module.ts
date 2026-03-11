@@ -9,6 +9,7 @@ import { ComponentsModule } from './components/components.module';
 import { DatabaseModule } from './database/database.module';
 import { T } from './libs/types/common';
 import { SocketModule } from './socket/socket.module';
+import { PropertyModule } from './no/components/property/property.module';
 
 @Module({
   imports: [
@@ -28,7 +29,7 @@ import { SocketModule } from './socket/socket.module';
     },
   }), 
   ComponentsModule, 
-  DatabaseModule, SocketModule],
+  DatabaseModule, SocketModule, PropertyModule],
   controllers: [AppController],
   providers: [AppService, AppResolver],
 })

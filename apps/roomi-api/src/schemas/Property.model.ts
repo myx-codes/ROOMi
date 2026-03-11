@@ -93,10 +93,7 @@ const PropertySchema = new Schema(
             type: String,
         },
 
-        propertyBarter: {
-            type: Boolean,
-            default: false,
-        },
+    
 
         propertyRent: {
             type: Boolean,
