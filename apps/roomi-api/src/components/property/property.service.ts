@@ -240,6 +240,36 @@ export class PropertyService {
 
 
 
+    public async updatePropertyByAdmin(input: PropertyUpdate): Promise<Property> {
+        let { propertyStatus, deletedAt } = input;
+        const search: T = {
+            _id: input._id,
+            propertyStatus: PropertyStatus.ACTIVE,
+        };
+
+    
+        if (propertyStatus === PropertyStatus.DELETE) deletedAt = moment().toDate();
+
+        const result = await this.propertyModel
+            .findOneAndUpdate(search, input, {
+                new: true,
+            })
+            .exec();
+        if (!result) throw new InternalServerErrorException(Message.UPDATE_FAILED);
+
+        if (deletedAt) {
+            await this.memberService.memberStatsEditor({
+                _id: result.memberId,
+                targetKey: 'memberProperties',
+                modifier: -1,
+            });
+        }
+
+        return result;
+    }
+
+
+
 
 
 
