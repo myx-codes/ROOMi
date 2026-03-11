@@ -1,13 +1,15 @@
-import { ObjectId } from 'bson';
+import { Types } from 'mongoose'; // bson o'rniga mongoose ishlatish tavsiya etiladi
 import { v4 as uuidv4 } from 'uuid';
 import * as path from 'path';
-import { T } from './types/common'; // common.ts faylingizdan T turini import qiling
+import { T } from './types/common';
 
-/** --- SORTING CONFIGURATIONS --- **/
+/** SORTING CONFIGURATIONS **/
 export const availableAgentSorts = ["createdAt", "updatedAt", "memberLikes", "memberViews", "memberRank"];
 export const availableMemberSorts = ["createdAt", "updatedAt", "memberLikes", "memberViews"];
 
-export const availableOptions = ['propertyRent'];
+// Barter olib tashlandi, faqat Rent qoldi (ijara uchun)
+export const availableOptions = ['propertyRent']; 
+
 export const availablePropertySorts = [
     'createdAt',
     'updatedAt',
@@ -19,24 +21,22 @@ export const availablePropertySorts = [
 
 export const availableBoardArticleSorts = ['createdAt', 'updatedAt', 'articleLikes', 'articleViews'];
 export const availableCommentSorts = ['createdAt', 'updatedAt'];
-export const availableBookingSorts = ['createdAt', 'bookingStart', 'bookingEnd', 'totalPrice'];
 
-/** --- IMAGE CONFIGURATION --- **/
+/** IMAGE CONFIGURATION **/
 export const validMimeTypes = ['image/png', 'image/jpg', 'image/jpeg'];
-
 export const getSerialForImage = (filename: string) => {
     const ext = path.parse(filename).ext;
     return uuidv4() + ext;
 };
 
-/** --- DATABASE UTILS --- **/
+/** MONGOOSE UTILS **/
 export const shapeIntoMongoObjectId = (target: any) => {
-    return typeof target === 'string' ? new ObjectId(target) : target;
+    return typeof target === 'string' ? new Types.ObjectId(target) : target;
 };
 
-/** --- AGGREGATION LOOKUPS (ROOMi Special) --- **/
+/** AGGREGATIONS **/
 
-// 1. Foydalanuvchi ushbu obyektga layk bosganmi? (MeLiked)
+// Dacha yoki Maqolaga foydalanuvchi layk bosganini tekshirish
 export const lookupAuthMemberLiked = (memberId: T, targetRefId: string = '$_id') => {
     return {
         $lookup: {
@@ -51,7 +51,7 @@ export const lookupAuthMemberLiked = (memberId: T, targetRefId: string = '$_id')
                     $match: {
                         $expr: {
                             $and: [
-                                { $eq: ['$likeRefId', '$$localLikeRefId'] }, 
+                                { $eq: ['$likeRefId', '$$localLikeRefId'] },
                                 { $eq: ['$memberId', '$$localMemberId'] }
                             ]
                         }
@@ -60,6 +60,8 @@ export const lookupAuthMemberLiked = (memberId: T, targetRefId: string = '$_id')
                 {
                     $project: {
                         _id: 0,
+                        memberId: 1,
+                        likeRefId: 1,
                         myFavorite: '$$localMyFavorite',
                     }
                 }
@@ -69,45 +71,7 @@ export const lookupAuthMemberLiked = (memberId: T, targetRefId: string = '$_id')
     };
 };
 
-// 2. Foydalanuvchi ushbu Agent/Memberga follow qilganmi? (MeFollowed)
-interface LookupAuthMemberFollowed {
-    followerId: T;
-    followingId: string;
-}
-export const lookupAuthMemberFollowed = (input: LookupAuthMemberFollowed) => {
-    const { followerId,followingId } = input;
-    return {
-        $lookup: {
-            from: 'follows',
-            let: {
-                localFollowerId: followerId,
-                localFollowingId: shapeIntoMongoObjectId(followingId),
-                localMyFavorite: true
-            },
-            pipeline: [
-                {
-                    $match: {
-                        $expr: {
-                            $and: [
-                                { $eq: ['$followerId', '$$localFollowerId'] }, 
-                                { $eq: ['$followingId', '$$localFollowingId'] }
-                            ]
-                        }
-                    }
-                },
-                {
-                    $project: {
-                        _id: 0,
-                        myFollowing: '$$localMyFavorite',
-                    }
-                }
-            ],
-            as: 'meFollowed'
-        }
-    };
-};
-
-// 3. Obyekt egasining ma'lumotlarini qo'shish (Owner Data)
+// Dacha egasi (Agent) haqida ma'lumotlarni ulash
 export const lookupMember = {
     $lookup: {
         from: 'members',
@@ -117,45 +81,22 @@ export const lookupMember = {
     },
 };
 
-// 4. Following va Follower ma'lumotlari
-export const lookupFollowingData = {
+// Sevimli dachalar ro'yxatida agent ma'lumotlarini ulash
+export const lookupFavorite = {
     $lookup: {
         from: 'members',
-        localField: 'followingId',
+        localField: 'favoriteProperty.memberId',
         foreignField: '_id',
-        as: 'followingData',
+        as: 'favoriteProperty.memberData',
     },
 };
 
-export const lookupFollowerData = {
+// Oxirgi ko'rilgan dachalar ro'yxatida agent ma'lumotlarini ulash
+export const lookupVisited = {
     $lookup: {
         from: 'members',
-        localField: 'followerId',
+        localField: 'visitedProperty.memberId',
         foreignField: '_id',
-        as: 'followerData',
+        as: 'visitedProperty.memberData',
     },
-};
-
-// 5. ROOMi Maxsus: Property uchun unga tegishli Availability (bandlik taqvimi)
-export const lookupPropertyAvailability = {
-    $lookup: {
-        from: 'availabilities',
-        localField: '_id',
-        foreignField: 'propertyId',
-        as: 'availabilityData',
-    },
-};
-
-// 6. ROOMi Maxsus: Property uchun unga tegishli oxirgi Review (Comment)lar
-export const lookupLatestComments = {
-    $lookup: {
-        from: 'comments',
-        let: { localPropertyId: '$_id' },
-        pipeline: [
-            { $match: { $expr: { $eq: ['$commentRefId', '$$localPropertyId'] } } },
-            { $sort: { createdAt: -1 } },
-            { $limit: 3 }
-        ],
-        as: 'latestComments'
-    }
 };
