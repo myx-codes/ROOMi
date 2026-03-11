@@ -98,6 +98,19 @@ export class BoardArticleResolver {
          console.log('Mutation: removeBoardArticleByAdmin');
          const articleId = shapeIntoMongoObjectId(input);
          return await this.boardArticleService.removeBoardArticleByAdmin(articleId);
+     };
+
+
+
+     @UseGuards(AuthGuard)
+     @Mutation(() => BoardArticle)
+     public async likeTargetBoardArticle(
+         @Args('articleId') input: string,
+         @AuthMember('_id') memberId: Types.ObjectId
+     ): Promise<BoardArticle> {
+         console.log("Mutation: LikeTargetMember");
+         const likeRefid = shapeIntoMongoObjectId(input);
+         return await this.boardArticleService.likeTargetBoardArticle(memberId, likeRefid);
      }
 
 

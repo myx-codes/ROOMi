@@ -11,6 +11,9 @@ import { ViewGroup } from '../../libs/enums/view.enum';
 import { BoardArticleUpdate } from '../../libs/dto/board-article/board-article.update';
 import { lookupMember, shapeIntoMongoObjectId } from '../../libs/config';
 import { StatisticModify, T } from '../../libs/types/common';
+import { LikeInput } from '../../libs/dto/like/like.input';
+import { LikeGroup } from '../../libs/enums/like.enum';
+import { LikeService } from '../like/like.service';
 
 @Injectable()
 export class BoardArticleService {
@@ -18,6 +21,7 @@ export class BoardArticleService {
         @InjectModel('BoardArticle') private readonly boardArticleModel: Model<BoardArticle>,
         private readonly memberService: MemberService,
         private readonly viewService: ViewService,
+        private readonly likeService: LikeService,
     ) {}
 
     public async createBoardArticle(memberId: Types.ObjectId, input: BoardArticleInput): Promise<BoardArticle> {
@@ -194,7 +198,7 @@ export class BoardArticleService {
 
 
 
-     public async boardArticleStatsEditor(input: StatisticModify): Promise<BoardArticle> {
+    public async boardArticleStatsEditor(input: StatisticModify): Promise<BoardArticle> {
             const { _id, targetKey, modifier } = input;
             return await this.boardArticleModel
                 .findByIdAndUpdate(
@@ -203,5 +207,33 @@ export class BoardArticleService {
                     { new: true }
                 )
                 .exec() as BoardArticle; // Qaytuvchi qiymatni majburlab 'Property' deb belgilaymiz
+    };
+
+
+
+
+    public async likeTargetBoardArticle(memberId: Types.ObjectId, likeRefId: Types.ObjectId): Promise<BoardArticle>{
+        const target = await this.boardArticleModel.findOne({_id: likeRefId, articleStatus: BoardArticleStatus.ACTIVE}).exec();
+        if(!target) throw new InternalServerErrorException(Message.NO_DATA_FOUND);
+   
+        const input: LikeInput = {
+             memberId: memberId,
+             likeRefId: likeRefId,
+             likeGroup: LikeGroup.ARTICLE
         };
+   
+        // Like Toggle via Like modules
+   
+        const modifier: number = await this.likeService.togglike(input);
+        const result = await this.boardArticleStatsEditor({_id: likeRefId, targetKey: 'articleLikes', modifier: modifier});
+   
+        if(!result) throw  new InternalServerErrorException(Message.SOMETHING_WENT_WRONG)
+        return result
+       };
+
+
+
+
+
+
 }
