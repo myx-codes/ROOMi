@@ -12,6 +12,17 @@ import { ViewModule } from './view/view.module';
 import { BoardArticleModule } from './board-article/board-article.module';
 
 @Module({
-  imports: [AuthModule, MemberModule, PropertyModule, BookingModule, AvailabilityModule, PaymentModule, NotificationModule, CommentModule, LikeModule, ViewModule, BoardArticleModule]
+  imports: [
+    AuthModule, 
+    MemberModule, 
+    PropertyModule, 
+    BookingModule, 
+    AvailabilityModule, 
+    PaymentModule, 
+    NotificationModule, 
+    CommentModule, 
+    LikeModule, 
+    ViewModule, 
+    BoardArticleModule]
 })
 export class ComponentsModule {}
