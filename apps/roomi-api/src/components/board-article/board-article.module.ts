@@ -20,6 +20,6 @@ import { ViewModule } from '../view/view.module';
     ViewModule,
   ],
   providers: [BoardArticleResolver, BoardArticleService],
-  exports: [BoardArticleModule]
+  exports: [BoardArticleService]
 })
 export class BoardArticleModule {}
