@@ -99,7 +99,9 @@ export class AgentsInquiry {
     @IsOptional()
     @IsIn(availableAgentSorts)
     @Field(() => String, { nullable: true })
-    sort?: string; // Sort odatda string bo'ladi (masalan: 'createdAt')
+    sort?: number
+    // sort?: string;  Sort odatda string bo'ladi (masalan: 'createdAt')
+
 
     @IsOptional()
     @Field(() => Direction, { nullable: true })

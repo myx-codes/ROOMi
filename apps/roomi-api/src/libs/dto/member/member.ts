@@ -97,7 +97,7 @@ export class Member {
 
 @ObjectType()
 export class TotalCounter {
-    @Field(() => Int)
+    @Field(() => Int, {nullable: true})
     total: number;
 }
 
@@ -106,6 +106,6 @@ export class Members {
     @Field(() => [Member])
     list: Member[];
 
-    @Field(() => [TotalCounter])
+    @Field(() => [TotalCounter], {nullable: true})
     metaCounter: TotalCounter[];
 }
