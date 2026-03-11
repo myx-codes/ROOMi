@@ -1,47 +1,66 @@
-import { Schema, Prop, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
-import { AvailabilityStatus } from '../libs/enums/availability.enum';
+import { Schema } from 'mongoose';
+import { BoardArticleCategory, BoardArticleStatus } from '../libs/enums/board-article.enum';
 
-@Schema({ timestamps: true, collection: 'availabilities' })
-export class Availability extends Document {
-    @Prop({
-        type: Types.ObjectId,
-        ref: 'Property',
-        required: true,
-        index: true, // Qidiruv tez bo'lishi uchun
-    })
-    propertyId: Types.ObjectId;
+const BoardArticleSchema = new Schema(
+    {
+        articleCategory: {
+            type: String,
+            enum: BoardArticleCategory,
+            required: true,
+        },
 
-    @Prop({
-        type: Date,
-        required: true,
-        index: true,
-    })
-    availabilityDate: Date; // Ma'lum bir sana (masalan: 2026-03-15)
+        articleStatus: {
+            type: String,
+            enum: BoardArticleStatus,
+            default: BoardArticleStatus.ACTIVE,
+        },
 
-    @Prop({
-        type: String,
-        enum: AvailabilityStatus,
-        default: AvailabilityStatus.AVAILABLE,
-    })
-    availabilityStatus: AvailabilityStatus;
+        articleTitle: {
+            type: String,
+            required: true,
+        },
 
-    @Prop({
-        type: Number,
-        required: true,
-    })
-    pricePerDay: number; // Aynan shu kungi narx (Hafta oxiri qimmatroq bo'lishi mumkin)
+        articleContent: {
+            type: String,
+            required: true,
+        },
 
-    @Prop({
-        type: Types.ObjectId,
-        ref: 'Booking',
-        default: null,
-    })
-    bookingId?: Types.ObjectId; // Agar band bo'lsa, qaysi bron asosida bandligini bilish uchun
-}
+        articleImage: {
+            type: String,
+        },
 
-export const AvailabilitySchema = SchemaFactory.createForClass(Availability);
+        articleLikes: {
+            type: Number,
+            default: 0,
+        },
 
-/** Murakkab qidiruvlar uchun kompozit index: 
- * Bir xil property uchun bir xil sanadan ikkita bo'lmasligi kerak **/
-AvailabilitySchema.index({ propertyId: 1, availabilityDate: 1 }, { unique: true });
+        articleViews: {
+            type: Number,
+            default: 0,
+        },
+
+        articleComments: {
+            type: Number,
+            default: 0,
+        },
+
+        memberId: {
+            type: Schema.Types.ObjectId,
+            required: true,
+            ref: 'Member',
+        },
+    },
+    { timestamps: true, collection: 'boardArticles' },
+);
+
+// Qidiruvni tezlashtirish uchun indexlar
+BoardArticleSchema.index({ memberId: 1, createdAt: -1 });
+BoardArticleSchema.index({ articleCategory: 1, articleStatus: 1 });
+
+// Matn bo'yicha qidiruv (Search) uchun Compound Text Index
+BoardArticleSchema.index(
+    { articleTitle: 'text', articleContent: 'text' }, 
+    { weights: { articleTitle: 10, articleContent: 5 }, name: 'BoardArticleTextIndex' }
+);
+
+export default BoardArticleSchema;
