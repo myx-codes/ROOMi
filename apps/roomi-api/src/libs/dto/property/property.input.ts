@@ -1,7 +1,7 @@
 import { InputType, Field, Int } from "@nestjs/graphql";
-import { IsIn, IsInt, IsNotEmpty, IsOptional, Length, Min } from "class-validator"
+import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Length, Min } from "class-validator"
 import { PropertyLocation, PropertyStatus, PropertyType } from "../../enums/property.enum";
-import type { ObjectId } from "mongoose";
+import type { Types } from "mongoose";
 import { Direction } from "../../enums/common.enum";
 import { availableOptions, availablePropertySorts } from "../../config";
 
@@ -50,8 +50,9 @@ export class PropertyInput {
     propertyRooms: number;
 
     @IsNotEmpty()
-    @Field(() => [String])
-    propertyImages: string;
+    @IsString({ each: true }) 
+    @Field(() => [String])    
+    propertyImages: string[]; 
 
     @IsOptional()
     @Length(5, 500)
@@ -63,7 +64,7 @@ export class PropertyInput {
     @Field(() => Boolean, {nullable: true})
     propertyRent?: boolean;
 
-    memberId?: ObjectId;
+    memberId?: Types.ObjectId;
 
     @IsOptional()
     @Field(() => Date, {nullable: true})
@@ -103,7 +104,7 @@ export class PeriodsRange {
 class PISearch {
     @IsOptional()
     @Field(() => String, { nullable: true })
-    memberId?: ObjectId;
+    memberId?: Types.ObjectId;
 
     @IsOptional()
     @Field(() => [PropertyLocation], { nullable: true })

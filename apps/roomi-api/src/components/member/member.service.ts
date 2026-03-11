@@ -1,13 +1,13 @@
 import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, ObjectId } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Member, Members } from '../../libs/dto/member/member';
 import { AgentsInquiry, LoginInput, MemberInput, MembersInquiry } from '../../libs/dto/member/member.input';
 import { MemberStatus, MemberType } from '../../libs/enums/member.enum';
 import { Direction, Message } from '../../libs/enums/common.enum';
 import { AuthService } from '../auth/auth.service';
 import { MemberUpdate } from '../../libs/dto/member/member.update';
-import { T } from '../../libs/types/common';
+import { StatisticModify, T } from '../../libs/types/common';
 import { ViewService } from '../view/view.service';
 import { ViewInput } from '../../libs/dto/view/view.input';
 import { ViewGroup } from '../../libs/enums/view.enum';
@@ -59,7 +59,7 @@ export class MemberService {
          return response;
      };
 
-    public async updateMember(memberId: ObjectId, input: MemberUpdate): Promise<Member>{
+    public async updateMember(memberId: Types.ObjectId, input: MemberUpdate): Promise<Member>{
      const result = await this.memberModel.findOneAndUpdate(
           {
           _id: memberId,
@@ -73,7 +73,7 @@ export class MemberService {
     return result;
     };
 
-    public async getMember(memberId: ObjectId, targetId: ObjectId): Promise<Member>{
+    public async getMember(memberId: Types.ObjectId, targetId: Types.ObjectId): Promise<Member>{
      const search: T = {
           _id: targetId,
           memberStatus: {
@@ -96,7 +96,7 @@ export class MemberService {
      return targetMember;
     };
 
-    public async getAgents(memberId: ObjectId, input: AgentsInquiry): Promise<Members>{
+    public async getAgents(memberId: Types.ObjectId, input: AgentsInquiry): Promise<Members>{
      const {text} = input.search;
      const match: T = {
           memberType: MemberType.AGENT,
@@ -151,5 +151,19 @@ export class MemberService {
      if(!result) throw new InternalServerErrorException(Message.UPDATE_FAILED)
      return result;
     };
+
+    public async memberStatsEditor(input: StatisticModify): Promise<Member>{
+     console.log("exec")
+     const {_id, targetKey, modifier} = input;
+     const result = await this.memberModel
+     .findOneAndUpdate(
+          {_id: _id, },
+          {$inc: { [targetKey]: modifier}}, 
+          {new: true}
+     )
+     .exec();
+     if (!result) throw new InternalServerErrorException(Message.UPDATE_FAILED);
+     return result;
+    }
 
 };
