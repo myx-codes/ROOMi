@@ -71,6 +71,17 @@ export class PropertyService {
         return targetProperty;
     }
 
+    /** Biror property ning bir kecha narxini olish (bron totalPrice hisoblash uchun) */
+    public async getPropertyPrice(propertyId: Types.ObjectId): Promise<number> {
+        const doc = await this.propertyModel
+            .findById(propertyId)
+            .select('propertyPrice')
+            .lean()
+            .exec();
+        if (!doc || (doc as any).propertyPrice == null) throw new InternalServerErrorException(Message.NO_DATA_FOUND);
+        return (doc as any).propertyPrice;
+    }
+
     
     public async updateProperty(memberId: Types.ObjectId, input: PropertyUpdate): Promise<Property> {
         let { propertyStatus, deletedAt } = input;

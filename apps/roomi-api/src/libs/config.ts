@@ -34,6 +34,22 @@ export const shapeIntoMongoObjectId = (target: any) => {
     return typeof target === 'string' ? new Types.ObjectId(target) : target;
 };
 
+/** SANA (YYYY-MM-DD) – backend da yil/oy/sana sifatida ishlash **/
+const YMD_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+/** "YYYY-MM-DD" stringini UTC kun boshiga (00:00:00.000Z) Date qilib qaytaradi */
+export const parseDateOnly = (dateStr: string): Date => {
+    if (!dateStr || !YMD_REGEX.test(dateStr)) {
+        throw new Error(`Invalid date format. Use YYYY-MM-DD: ${dateStr}`);
+    }
+    return new Date(`${dateStr}T00:00:00.000Z`);
+};
+
+/** Date ni "YYYY-MM-DD" stringiga aylantiradi (UTC bo‘yicha) */
+export const formatDateOnly = (date: Date): string => {
+    return date.toISOString().split('T')[0];
+};
+
 /** AGGREGATIONS **/
 
 // Dacha yoki Maqolaga foydalanuvchi layk bosganini tekshirish

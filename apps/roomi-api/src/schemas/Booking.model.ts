@@ -39,7 +39,6 @@ export class Booking extends Document {
 
     @Prop({
         type: Number,
-        required: true,
     })
     totalPrice: number; // Jami hisoblangan summa
 

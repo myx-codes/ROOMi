@@ -1,0 +1,47 @@
+import { Args, Int, Mutation, Parent, Resolver, Query, ResolveField } from '@nestjs/graphql';
+import { BookingService } from './booking.service';
+import { Booking, Bookings } from '../../libs/dto/booking/booking';
+import { BookingInput, BookingsInquiry } from '../../libs/dto/booking/booking.input';
+import { UseGuards } from '@nestjs/common';
+import { AuthGuard } from '../auth/guards/auth.guard';
+import { AuthMember } from '../auth/decorators/authMember.decorator';
+import { Types } from 'mongoose';
+import { formatDateOnly } from '../../libs/config';
+
+@Resolver(() => Booking)
+export class BookingResolver {
+    constructor(private readonly bookingService: BookingService) {}
+
+    @UseGuards(AuthGuard)
+    @Mutation(() => Booking)
+    async createBooking(
+        @Args('input') input: BookingInput,
+        @AuthMember('_id') memberId: Types.ObjectId,
+    ): Promise<Booking> {
+        return await this.bookingService.createBooking(memberId, input);
+    }
+
+    @UseGuards(AuthGuard)
+    @Query(() => Bookings) // Diqqat: Bookings (list va metaCounter bilan)
+    async getMyBookings(
+        @Args('input') input: BookingsInquiry,
+        @AuthMember('_id') memberId: Types.ObjectId,
+    ): Promise<Bookings> {
+        return await this.bookingService.getMyBookings(memberId, input);
+    }
+
+    @ResolveField(() => String)
+    bookingCheckIn(@Parent() booking: Booking): string {
+        return booking.bookingStart ? formatDateOnly(new Date(booking.bookingStart)) : '';
+    }
+
+    @ResolveField(() => String)
+    bookingCheckOut(@Parent() booking: Booking): string {
+        return booking.bookingEnd ? formatDateOnly(new Date(booking.bookingEnd)) : '';
+    }
+
+    @ResolveField(() => Int)
+    bookingPrice(@Parent() booking: Booking): number {
+        return booking.totalPrice ?? 0;
+    }
+}

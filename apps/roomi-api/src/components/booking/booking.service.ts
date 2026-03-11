@@ -1,0 +1,109 @@
+import { Injectable, InternalServerErrorException, BadRequestException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+import { Booking, Bookings } from '../../libs/dto/booking/booking'; // Bookings ni ham import qiling
+import { BookingInput, BookingsInquiry } from '../../libs/dto/booking/booking.input';
+import { AvailabilityService } from '../availability/availability.service';
+import { PropertyService } from '../property/property.service';
+import { BookingStatus } from '../../libs/enums/booking.enum';
+import { T } from '../../libs/types/common';
+import { Booking as BookingSchemaDoc } from '../../schemas/Booking.model';
+import { parseDateOnly, formatDateOnly } from '../../libs/config';
+
+@Injectable()
+export class BookingService {
+    constructor(
+        @InjectModel('Booking') private readonly bookingModel: Model<BookingSchemaDoc>,
+        private readonly availabilityService: AvailabilityService,
+        private readonly propertyService: PropertyService,
+    ) {}
+
+    public async createBooking(memberId: Types.ObjectId, input: BookingInput): Promise<Booking> {
+        try {
+            const start = parseDateOnly(input.bookingStart);
+            const end = parseDateOnly(input.bookingEnd);
+            const nights = Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) || 1;
+            const pricePerNight = await this.propertyService.getPropertyPrice(input.propertyId);
+            const totalPrice = pricePerNight * nights;
+
+            const result = await this.bookingModel.create({
+                ...input,
+                memberId,
+                bookingStart: start,
+                bookingEnd: end,
+                bookingStatus: BookingStatus.CONFIRMED,
+                totalPrice,
+            });
+
+            await this.markDatesAsBooked(
+                input.propertyId,
+                input.bookingStart,
+                input.bookingEnd,
+                memberId
+            );
+
+            return result as unknown as Booking;
+        } catch (err) {
+            console.error("Error in createBooking:", err);
+            throw new InternalServerErrorException("Bron qilishda xatolik yuz berdi: " + err.message);
+        }
+    }
+
+    /** 2. TAQVIMNI BLOKLASH (YORDAMCHI FUNKSIYA) **/
+    private async markDatesAsBooked(
+        propertyId: Types.ObjectId, 
+        startStr: string, 
+        endStr: string, 
+        memberId: Types.ObjectId
+    ) {
+        let current = parseDateOnly(startStr);
+        const last = parseDateOnly(endStr);
+
+        while (current.getTime() <= last.getTime()) {
+            const dateStr = formatDateOnly(current);
+            await this.availabilityService.updateAvailability(memberId, {
+                propertyId,
+                date: dateStr,
+                isBooked: true,
+            });
+            current.setUTCDate(current.getUTCDate() + 1);
+        }
+    }
+
+    /** 3. FOYDALANUVCHI BRONLARINI OLISH **/
+    public async getMyBookings(memberId: Types.ObjectId, input: BookingsInquiry): Promise<Bookings> {
+        const { page, limit, bookingStatus } = input;
+        const match: T = { memberId: memberId };
+        
+        if (bookingStatus) match.bookingStatus = bookingStatus;
+    
+        const result = await this.bookingModel.aggregate([
+            { $match: match },
+            { $sort: { createdAt: -1 } },
+            {
+                $facet: {
+                    list: [
+                        { $skip: (page - 1) * limit },
+                        { $limit: limit },
+                        {
+                            $lookup: {
+                                from: 'properties', // MongoDB-dagi collection nomi
+                                localField: 'propertyId',
+                                foreignField: '_id',
+                                as: 'propertyData',
+                            },
+                        },
+                        { $unwind: { path: '$propertyData', preserveNullAndEmptyArrays: true } },
+                    ],
+                    metaCounter: [{ $count: 'total' }],
+                },
+            },
+        ]).exec();
+    
+        // Agar natija bo'sh bo'lsa, xato bermasligi uchun default qiymat
+        return {
+            list: result[0]?.list || [],
+            metaCounter: result[0]?.metaCounter || [{ total: 0 }],
+        };
+    }
+}
