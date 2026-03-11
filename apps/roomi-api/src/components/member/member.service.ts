@@ -5,22 +5,26 @@ import { Member } from '../../libs/dto/member/member';
 import { LoginInput, MemberInput } from '../../libs/dto/member/member.input';
 import { MemberStatus } from '../../libs/enums/member.enum';
 import { Message } from '../../libs/enums/common.enum';
+import { AuthService } from '../auth/auth.service';
 
 @Injectable()
 export class MemberService {
 
-    constructor(@InjectModel("Member") private readonly memberModel: Model<Member>){}
+    constructor(@InjectModel("Member") private readonly memberModel: Model<Member>,
+    private readonly authService: AuthService){}
 
     public async signup(input: MemberInput): Promise<Member>{
-     // TODO: Hash Password
+     //Hash Password
+     input.memberPassword = await this.authService.hashPassword(input.memberPassword)
 
      try{
          const  result = await this.memberModel.create(input);
-         // TODO: Authentication: TOKEn
+         //Authentication: TOKEN
+         result.accessToken = await this.authService.createToken(result);
          return result;
      }catch(err){
-          console.log("Error, Service.Model", err);
-          throw new BadRequestException(err);
+          console.log("Error, Service.Model", err.message);
+          throw new BadRequestException(Message.USED_NICK_OR_PHONE);
      }
     };
 
@@ -39,11 +43,11 @@ export class MemberService {
           throw new InternalServerErrorException(Message.BLOCKED_USER);
          }
 
-         // TODO: Compare password
-         console.log("response", response)
-
-         const isMatch = memberPassword === response.memberPassword;
+         // Compare password 
+         const isMatch = await this.authService.comparePassword(input.memberPassword, 
+          response.memberPassword!);
          if(!isMatch) throw new InternalServerErrorException(Message.WRONG_PASSWORD);
+         response.accessToken = await this.authService.createToken(response);
 
          return response;
      };
@@ -53,6 +57,14 @@ export class MemberService {
     };
 
     public async getMember(): Promise<string>{
+         return "getMember executed"
+    };
+
+    public async getAllMembersByAdmin(): Promise<string>{
+         return "updateMember executed"
+    };
+
+    public async updateMembersByAdmin(): Promise<string>{
          return "getMember executed"
     };
 
