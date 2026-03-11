@@ -164,6 +164,20 @@ export class MemberResolver {
 
         await Promise.all(promisedList);
         return uploadedImages;
+    };
+
+
+
+
+    @UseGuards(AuthGuard)
+    @Mutation(() => Member)
+    public async likeTargetMember(
+        @Args('memberId') input: string,
+        @AuthMember('_id') memberId: Types.ObjectId
+    ): Promise<Member> {
+        console.log("Mutation: LikeTargetMember");
+        const likeRefid = shapeIntoMongoObjectId(input);
+        return await this.memberService.likeTargetMember(memberId, likeRefid);
     }
 
 
