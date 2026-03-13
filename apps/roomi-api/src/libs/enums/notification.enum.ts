@@ -1,11 +1,20 @@
 import { registerEnumType } from '@nestjs/graphql';
 
+/**
+ * NoticeCategory - Bildirishnoma va hujjatlar turlari
+ * FAQ, TERMS, PRIVACY - Admin tomonidan boshqariladigan statik hujjatlar
+ * ANNOUNCEMENT - Umumiy e'lonlar
+ * BOOKING, PAYMENT, PROPERTY - Shaxsiy bildirishnomalar
+ */
 export enum NoticeCategory {
-    FAQ = 'FAQ',             // Ko'p beriladigan savollar
-    TERMS = 'TERMS',         // Foydalanish shartlari
-    PRIVACY = 'PRIVACY',     // Maxfiylik siyosati (Yangi qo'shildi)
-    INQUIRY = 'INQUIRY',     // Foydalanuvchi murojaatlari / So'rovnomalar
-    ANNOUNCEMENT = 'ANNOUNCEMENT' // Muhim e'lonlar (masalan: "Tizimda profilaktika")
+    FAQ = 'FAQ',
+    TERMS = 'TERMS',
+    PRIVACY = 'PRIVACY',
+    ANNOUNCEMENT = 'ANNOUNCEMENT',
+    BOOKING = 'BOOKING',      // Yangi bron yoki bron holati o'zgarganda
+    PAYMENT = 'PAYMENT',      // To'lov muvaffaqiyatli yoki xato bo'lganda
+    PROPERTY = 'PROPERTY',    // Dacha tasdiqlanganda yoki rad etilganda
+    INQUIRY = 'INQUIRY',      // Murojaatlarga javob qaytganda
 }
 
 registerEnumType(NoticeCategory, {
@@ -13,9 +22,16 @@ registerEnumType(NoticeCategory, {
     description: 'Platformadagi bildirishnoma va hujjatlar turlari',
 });
 
+/**
+ * NoticeStatus - Bildirishnomaning hayotiy sikli
+ * READ / UNREAD - Shaxsiy bildirishnomalar uchun
+ * ACTIVE / HOLD - Umumiy e'lonlar va hujjatlar uchun
+ */
 export enum NoticeStatus {
-    HOLD = 'HOLD',     // Qoralama (hali chop etilmagan)
-    ACTIVE = 'ACTIVE', // Saytda ko'rinib turibdi
+    HOLD = 'HOLD',     // Qoralama (chop etilmagan)
+    ACTIVE = 'ACTIVE', // Faol (hamma ko'radi)
+    UNREAD = 'UNREAD', // Shaxsiy xabar: O'qilmagan
+    READ = 'READ',     // Shaxsiy xabar: O'qilgan
     DELETE = 'DELETE', // O'chirilgan
 }
 

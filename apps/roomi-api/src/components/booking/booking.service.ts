@@ -9,6 +9,8 @@ import { BookingStatus } from '../../libs/enums/booking.enum';
 import { T } from '../../libs/types/common';
 import { Booking as BookingSchemaDoc } from '../../schemas/Booking.model';
 import { parseDateOnly, formatDateOnly } from '../../libs/config';
+import { NoticeService } from '../notifaction/notice.service';
+import { NoticeCategory, NoticeStatus } from '../../libs/enums/notification.enum';
 
 @Injectable()
 export class BookingService {
@@ -16,6 +18,7 @@ export class BookingService {
         @InjectModel('Booking') private readonly bookingModel: Model<BookingSchemaDoc>,
         private readonly availabilityService: AvailabilityService,
         private readonly propertyService: PropertyService,
+        private readonly noticeService: NoticeService,
     ) {}
 
     public async createBooking(memberId: Types.ObjectId, input: BookingInput): Promise<Booking> {
@@ -25,6 +28,7 @@ export class BookingService {
             const nights = Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) || 1;
             const pricePerNight = await this.propertyService.getPropertyPrice(input.propertyId);
             const totalPrice = pricePerNight * nights;
+            const property = await this.propertyService.getProperty(null as any, input.propertyId);
 
             const result = await this.bookingModel.create({
                 ...input,
@@ -41,6 +45,21 @@ export class BookingService {
                 input.bookingEnd,
                 memberId
             );
+
+            try {
+                await this.noticeService.createNotification({
+                    category: NoticeCategory.BOOKING,
+                    status: NoticeStatus.UNREAD,
+                    title: 'Yangi dacha bandlov!',
+                    content: `${property.propertyTitle} dachangiz ${input.bookingStart} dan ${input.bookingEnd} gacha bron qilindi.`,
+                    receiverId: property.memberId,
+                    creatorId: memberId,
+                    propertyId: input.propertyId,
+                });
+            } catch (noticeErr) {
+                console.error('Booking created, but notification failed:', noticeErr?.message || noticeErr);
+            }
+
 
             return result as unknown as Booking;
         } catch (err) {

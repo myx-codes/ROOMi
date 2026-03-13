@@ -3,43 +3,50 @@ import { NoticeCategory, NoticeStatus } from '../libs/enums/notification.enum';
 
 const NoticeSchema = new Schema(
     {
-        noticeCategory: {
+        category: {
             type: String,
             enum: NoticeCategory,
             required: true,
         },
 
-        noticeStatus: {
+        status: {
             type: String,
             enum: NoticeStatus,
-            default: NoticeStatus.ACTIVE,
+            default: NoticeStatus.UNREAD,
         },
 
-        noticeTitle: {
+        title: {
             type: String,
             required: true,
         },
 
-        noticeContent: {
+        content: {
             type: String,
             required: true,
         },
 
-        // Qo'shimcha: E'lonlar uchun rasm (ixtiyoriy)
-        noticeImage: {
-            type: String,
-        },
-        
-        memberId: {
+        receiverId: {
             type: Schema.Types.ObjectId,
             required: true,
-            ref: 'Member', // E'lonni yaratgan admin
+            ref: 'Member',
+        },
+
+        creatorId: {
+            type: Schema.Types.ObjectId,
+            required: false,
+            ref: 'Member',
+        },
+
+        propertyId: {
+            type: Schema.Types.ObjectId,
+            required: false,
+            ref: 'Property',
         },
     },
     { timestamps: true, collection: 'notices' },
 );
 
-// Sarlavha bo'yicha qidiruvni tezlashtirish uchun
-NoticeSchema.index({ noticeTitle: 'text' });
+NoticeSchema.index({ receiverId: 1, createdAt: -1 });
+NoticeSchema.index({ title: 'text' });
 
 export default NoticeSchema;

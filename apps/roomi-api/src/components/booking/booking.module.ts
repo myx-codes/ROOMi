@@ -6,13 +6,15 @@ import {BookingSchema} from '../../schemas/Booking.model';
 import { AuthModule } from '../auth/auth.module';
 import { PropertyModule } from '../property/property.module';
 import { AvailabilityModule } from '../availability/availability.module';
+import { NoticeModule } from '../notifaction/notice.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: 'Booking', schema: BookingSchema }]),
     AuthModule,
     PropertyModule,
-    AvailabilityModule, // Bron qilinganda sanalarni yopish uchun kerak
+    AvailabilityModule,
+    NoticeModule,
   ],
   providers: [BookingResolver, BookingService],
   exports: [BookingService],

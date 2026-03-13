@@ -33,7 +33,7 @@ export class AvailabilityService {
                             pricePerDay: input.pricePerDay ?? 0,
                         }
                     },
-                    { upsert: true, new: true }
+                    { upsert: true, returnDocument: 'after' }
                 ).exec();
             } else {
                 await this.availabilityModel.findOneAndDelete({

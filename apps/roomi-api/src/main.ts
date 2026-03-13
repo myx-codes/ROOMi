@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { MaxFileSizeValidator, ValidationPipe } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
 import { LoggingInterceptor } from '../src/libs/interceptor/Logging.interceptor';
 import {graphqlUploadExpress} from "graphql-upload"
 import * as express from "express"
