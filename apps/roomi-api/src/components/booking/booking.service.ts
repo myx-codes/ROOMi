@@ -14,6 +14,12 @@ import { NoticeCategory, NoticeStatus } from '../../libs/enums/notification.enum
 
 @Injectable()
 export class BookingService {
+    updateStatus(_id: any, PAID: any) {
+        throw new Error("Method not implemented.");
+    }
+    getBookingById(arg0: Types.ObjectId) {
+        throw new Error("Method not implemented.");
+    }
     constructor(
         @InjectModel('Booking') private readonly bookingModel: Model<BookingSchemaDoc>,
         private readonly availabilityService: AvailabilityService,

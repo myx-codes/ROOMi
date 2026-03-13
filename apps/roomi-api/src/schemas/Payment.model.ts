@@ -1,59 +1,55 @@
-import { Schema, Types } from 'mongoose';
+import { Schema, Prop, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
 import { PaymentStatus, PaymentMethod } from '../libs/enums/payment.enum';
 
-const PaymentSchema = new Schema(
-    {
-        paymentStatus: {
-            type: String,
-            enum: PaymentStatus,
-            default: PaymentStatus.PENDING,
-        },
+@Schema({ timestamps: true, collection: 'payments' })
+export class Payment extends Document {
+    @Prop({
+        type: String,
+        enum: PaymentStatus,
+        default: PaymentStatus.PENDING,
+    })
+    paymentStatus: PaymentStatus;
 
-        paymentMethod: {
-            type: String,
-            enum: PaymentMethod,
-            required: true,
-        },
+    @Prop({
+        type: String,
+        enum: PaymentMethod,
+        required: true,
+    })
+    paymentMethod: PaymentMethod;
 
-        // To'lov miqdori
-        paymentAmount: {
-            type: Number,
-            required: true,
-        },
+    @Prop({
+        type: Number,
+        required: true,
+    })
+    paymentAmount: number;
 
-        // Qaysi bron uchun to'lov qilinmoqda
-        bookingId: {
-            type: Schema.Types.ObjectId,
-            required: true,
-            ref: 'Booking',
-        },
+    @Prop({
+        type: Types.ObjectId,
+        required: true,
+        ref: 'Booking',
+    })
+    bookingId: Types.ObjectId;
 
-        // To'lovni amalga oshirgan foydalanuvchi
-        memberId: {
-            type: Schema.Types.ObjectId,
-            required: true,
-            ref: 'Member',
-        },
+    @Prop({
+        type: Types.ObjectId,
+        required: true,
+        ref: 'Member',
+    })
+    memberId: Types.ObjectId;
 
-        // Tashqi to'lov tizimidan keladigan tranzaksiya IDsi (Click/Payme ID)
-        transactionId: {
-            type: String,
-            default: null,
-        },
+    @Prop({
+        type: String,
+        default: null,
+        index: { unique: true, sparse: true }, // Indexni shu yerning o'zida berish qulay
+    })
+    transactionId?: string;
 
-        // To'lov vaqti (muvaffaqiyatli bo'lgan payt)
-        paidAt: {
-            type: Date,
-            default: null,
-        },
-    },
-    { 
-        timestamps: true, 
-        collection: 'payments' 
-    },
-);
+    @Prop({
+        type: Date,
+        default: null,
+    })
+    paidAt?: Date;
+}
 
-// Tranzaksiya ID bo'yicha tez qidirish uchun
-PaymentSchema.index({ transactionId: 1 }, { sparse: true });
-
-export default PaymentSchema;
+export const PaymentSchema = SchemaFactory.createForClass(Payment);
