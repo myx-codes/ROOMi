@@ -22,6 +22,11 @@ const resolveSameSite = (): CookieOptions['sameSite'] => {
 
 const isProd = process.env.NODE_ENV === 'production';
 
+const resolveSecure = (sameSite: CookieOptions['sameSite']): boolean => {
+  if (sameSite === 'none') return true;
+  return isProd;
+};
+
 const resolveCookieDomain = (): string | undefined => {
   const domain = process.env.AUTH_COOKIE_DOMAIN;
   return domain && domain.trim().length > 0 ? domain : undefined;
@@ -34,30 +39,42 @@ const resolveMaxAge = (): number => {
   return Number.isFinite(value) && value > 0 ? value : DEFAULT_AUTH_MAX_AGE_MS;
 };
 
-export const authCookieOptions = (): CookieOptions => ({
-  httpOnly: true,
-  secure: isProd,
-  sameSite: resolveSameSite(),
-  domain: resolveCookieDomain(),
-  path: resolveCookiePath(),
-  maxAge: resolveMaxAge(),
-});
+export const authCookieOptions = (): CookieOptions => {
+  const sameSite = resolveSameSite();
 
-export const csrfCookieOptions = (): CookieOptions => ({
-  httpOnly: false,
-  secure: isProd,
-  sameSite: resolveSameSite(),
-  domain: resolveCookieDomain(),
-  path: resolveCookiePath(),
-  maxAge: resolveMaxAge(),
-});
+  return {
+    httpOnly: true,
+    secure: resolveSecure(sameSite),
+    sameSite,
+    domain: resolveCookieDomain(),
+    path: resolveCookiePath(),
+    maxAge: resolveMaxAge(),
+  };
+};
 
-export const clearCookieOptions = (): CookieOptions => ({
-  secure: isProd,
-  sameSite: resolveSameSite(),
-  domain: resolveCookieDomain(),
-  path: resolveCookiePath(),
-});
+export const csrfCookieOptions = (): CookieOptions => {
+  const sameSite = resolveSameSite();
+
+  return {
+    httpOnly: false,
+    secure: resolveSecure(sameSite),
+    sameSite,
+    domain: resolveCookieDomain(),
+    path: resolveCookiePath(),
+    maxAge: resolveMaxAge(),
+  };
+};
+
+export const clearCookieOptions = (): CookieOptions => {
+  const sameSite = resolveSameSite();
+
+  return {
+    secure: resolveSecure(sameSite),
+    sameSite,
+    domain: resolveCookieDomain(),
+    path: resolveCookiePath(),
+  };
+};
 
 export const generateCsrfToken = (): string => randomBytes(24).toString('hex');
 

@@ -6,15 +6,24 @@ import {graphqlUploadExpress} from "graphql-upload"
 import * as express from "express"
 import { WsAdapter } from '@nestjs/platform-ws';
 import cookieParser from 'cookie-parser';
+import { CSRF_HEADER_NAME } from './components/auth/auth-cookie.util';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.use(express.json({ limit: '10mb' }))
+  app.use(express.urlencoded({ extended: true, limit: '10mb' }))
   app.useGlobalPipes(new ValidationPipe())
   app.useGlobalInterceptors(new LoggingInterceptor())
-  app.enableCors({origin: true, credentials: true})
+  app.enableCors({
+    origin: true,
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', CSRF_HEADER_NAME, 'x-xsrf-token'],
+    exposedHeaders: [CSRF_HEADER_NAME],
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+  })
   app.use(cookieParser())
 
-  app.use(graphqlUploadExpress({MaxFileSize:15000000, maxFile: 10}))
+  app.use(graphqlUploadExpress({ maxFileSize: 15000000, maxFiles: 10 }))
   app.use("/uploads", express.static('./uploads'))
 
   app.useWebSocketAdapter(new WsAdapter(app));

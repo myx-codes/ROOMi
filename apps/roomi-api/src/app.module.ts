@@ -18,11 +18,23 @@ import { SocketModule } from './socket/socket.module';
     playground: true,
     uploads: false,
     autoSchemaFile: true,
+    bodyParserConfig: {
+      limit: '10mb',
+    },
     context: ({ req, res }) => ({ req, res }),
     formatError: (error: T) => {
+      const nestedMessage =
+        error?.extensions?.exception?.response?.message ??
+        error?.extensions?.response?.message ??
+        error?.extensions?.originalError?.message;
+
+      const message = Array.isArray(nestedMessage)
+        ? nestedMessage.join('; ')
+        : nestedMessage || error?.message;
+
       const graphQLFormattedError = {
         code: error?.extensions.code,
-        message: error?.extensions?.exception?.response?.message || error?.extensions?.response?.message || error?.message,
+        message,
       };
       console.log("GraphGQ Global Error", graphQLFormattedError);
       return graphQLFormattedError;
