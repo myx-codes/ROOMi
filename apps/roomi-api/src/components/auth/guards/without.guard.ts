@@ -1,5 +1,6 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { AuthService } from '../auth.service';
+import { getTokenFromRequest } from '../auth-cookie.util';
 
 // RETRIEVER GUARD 
 @Injectable()
@@ -10,13 +11,12 @@ export class WithoutGuard implements CanActivate {
 		console.info('--- @guard() Authentication [WithoutGuard] ---');
 
 		if (context.contextType === 'graphql') {
-			const request = context.getArgByIndex(2).req,
-				bearerToken = request.headers.authorization;
+			const request = context.getArgByIndex(2).req;
+			const { token } = getTokenFromRequest(request);
 
-			if (bearerToken) {
+			if (token) {
 				try {
-					const token = bearerToken.split(' ')[1],
-						authMember = await this.authService.verifyToken(token);
+					const authMember = await this.authService.verifyToken(token);
 					request.body.authMember = authMember;
 				} catch (err) {
 					request.body.authMember = null;

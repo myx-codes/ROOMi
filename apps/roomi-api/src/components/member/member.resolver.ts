@@ -1,4 +1,4 @@
-import { Mutation, Resolver, Query, Args } from '@nestjs/graphql';
+import { Mutation, Resolver, Query, Args, Context } from '@nestjs/graphql';
 import { MemberService } from './member.service';
 import {  UseGuards} from '@nestjs/common';
 import { AgentsInquiry, LoginInput, MemberInput, MembersInquiry } from '../../libs/dto/member/member.input';
@@ -15,6 +15,16 @@ import { WithoutGuard } from '../auth/guards/without.guard';
 import { GraphQLUpload, FileUpload } from 'graphql-upload';
 import { createWriteStream } from 'fs';
 import { Message } from '../../libs/enums/common.enum';
+import { Response } from 'express';
+import {
+    AUTH_COOKIE_NAME,
+    CSRF_COOKIE_NAME,
+    CSRF_HEADER_NAME,
+    authCookieOptions,
+    clearCookieOptions,
+    csrfCookieOptions,
+    generateCsrfToken,
+} from '../auth/auth-cookie.util';
 
 
 @Resolver()
@@ -29,10 +39,32 @@ export class MemberResolver {
     };
 
     @Mutation(() => Member)
-    public async login(@Args("input") input: LoginInput): Promise<Member>{
+    public async login(@Args("input") input: LoginInput, @Context() context: any): Promise<Member>{
         console.log("Mutation: login")
-        return await this.memberService.login(input);
+        const result = await this.memberService.login(input);
+        const response: Response | undefined = context?.res;
+
+        if (response && result.accessToken) {
+            const csrfToken = generateCsrfToken();
+            response.cookie(AUTH_COOKIE_NAME, result.accessToken, authCookieOptions());
+            response.cookie(CSRF_COOKIE_NAME, csrfToken, csrfCookieOptions());
+            response.setHeader(CSRF_HEADER_NAME, csrfToken);
+        }
+
+        return result;
     };
+
+    @UseGuards(AuthGuard)
+    @Mutation(() => String)
+    public async logout(@Context() context: any): Promise<string> {
+        const response: Response | undefined = context?.res;
+        if (response) {
+            const options = clearCookieOptions();
+            response.clearCookie(AUTH_COOKIE_NAME, options);
+            response.clearCookie(CSRF_COOKIE_NAME, options);
+        }
+        return 'Logout successful';
+    }
 
 
     // Authenticated APIs 

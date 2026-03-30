@@ -68,14 +68,6 @@ const MemberScheme = new Schema({
         default: ""
     },
 
-    memberAddress: {
-        type: String,
-    },
-
-    memberDesc: {
-        type: String
-    },
-
     // --- Statistika (Aggregatsiya uchun) ---
     memberProperties: {
         type: Number,
@@ -89,16 +81,6 @@ const MemberScheme = new Schema({
     
 
     memberBookings: { // 'memberArticles' o'rniga Booking muhimroq
-        type: Number,
-        default: 0
-    },
-
-    memberFollowers: {
-        type: Number,
-        default: 0
-    },
-
-    memberFollowings: {
         type: Number,
         default: 0
     },

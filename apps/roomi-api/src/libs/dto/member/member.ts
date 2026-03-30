@@ -33,24 +33,12 @@ export class Member {
     @Field(() => String, { nullable: true })
     memberImage?: string;
 
-    @Field(() => String, { nullable: true })
-    memberAddress?: string;
-
-    @Field(() => String, { nullable: true })
-    memberDesc?: string;
-
     // ROOMi loyihasi uchun hisoblagichlar
     @Field(() => Int)
     memberProperties: number; // Foydalanuvchi joylagan e'lonlar soni
 
     @Field(() => Int)
     memberArticles: number; // Blog/Maqolalar soni
-
-    @Field(() => Int)
-    memberFollowers: number;
-
-    @Field(() => Int)
-    memberFollowings: number;
 
     @Field(() => Int)
     memberPoints: number; // Gamification uchun ballar

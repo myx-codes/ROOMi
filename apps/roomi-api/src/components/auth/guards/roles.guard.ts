@@ -2,6 +2,7 @@ import { BadRequestException, CanActivate, ExecutionContext, Injectable, Forbidd
 import { Reflector } from '@nestjs/core';
 import { AuthService } from '../auth.service';
 import { Message } from 'apps/roomi-api/src/libs/enums/common.enum';
+import { getTokenFromRequest, hasValidCsrf, isMutationOperation } from '../auth-cookie.util';
 
 // AUTHORIZATION GUARD => TAMGA + HUQUQ
 @Injectable()
@@ -19,11 +20,15 @@ export class RolesGuard implements CanActivate {
 
 		if (context.contextType === 'graphql') {
 			const request = context.getArgByIndex(2).req;
-			const bearerToken = request.headers.authorization;
-			if (!bearerToken) throw new BadRequestException(Message.TOKEN_NOT_EXIST);
+			const { token, source } = getTokenFromRequest(request);
+			if (!token) throw new BadRequestException(Message.TOKEN_NOT_EXIST);
 
-			const token = bearerToken.split(' ')[1],
-				authMember = await this.authService.verifyToken(token),
+			const csrfRequired = source === 'cookie' && isMutationOperation(context);
+			if (csrfRequired && !hasValidCsrf(request)) {
+				throw new BadRequestException('CSRF token is invalid or missing');
+			}
+
+			const authMember = await this.authService.verifyToken(token),
 				hasRole = () => roles.indexOf(authMember.memberType) > -1,
 				hasPermission: boolean = hasRole();
 

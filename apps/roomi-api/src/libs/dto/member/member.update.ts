@@ -44,15 +44,6 @@ export class MemberUpdate {
     @Field(() => String, { nullable: true })
     memberImage?: string;
 
-    @IsOptional()
-    @Field(() => String, { nullable: true })
-    memberAddress?: string;
-    
-    @IsOptional()
-    @Length(10, 500) // Tavsif biroz uzunroq bo'lishi mumkin
-    @Field(() => String, { nullable: true })
-    memberDesc?: string;
-
     // deletedAt odatda tashqaridan update qilinmaydi (Soft delete uchun ishlatiladi)
     // Lekin mantiqan kerak bo'lsa qoldirish mumkin
     @IsOptional()
