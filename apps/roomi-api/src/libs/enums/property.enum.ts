@@ -6,6 +6,8 @@ export enum PropertyType {
     APARTMENT = 'APARTMENT',
     RESORT = 'RESORT',
     HOTEL = 'HOTEL',
+    SANATORIUM = 'SANATORIUM',
+
 }
 registerEnumType(PropertyType, { name: 'PropertyType' });
 

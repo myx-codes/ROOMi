@@ -17,7 +17,14 @@ async function bootstrap() {
   app.enableCors({
     origin: true,
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', CSRF_HEADER_NAME, 'x-xsrf-token'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      CSRF_HEADER_NAME,
+      'x-xsrf-token',
+      'apollo-require-preflight',
+      'x-apollo-operation-name',
+    ],
     exposedHeaders: [CSRF_HEADER_NAME],
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
   })

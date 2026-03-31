@@ -8,7 +8,7 @@ import { PropertyService } from '../property/property.service';
 import { BookingStatus } from '../../libs/enums/booking.enum';
 import { T } from '../../libs/types/common';
 import { Booking as BookingSchemaDoc } from '../../schemas/Booking.model';
-import { parseDateOnly, formatDateOnly } from '../../libs/config';
+import { parseDateOnly, formatDateOnly, shapeIntoMongoObjectId } from '../../libs/config';
 import { NoticeService } from '../notifaction/notice.service';
 import { NoticeCategory, NoticeStatus } from '../../libs/enums/notification.enum';
 
@@ -43,6 +43,13 @@ export class BookingService {
                 bookingEnd: end,
                 bookingStatus: BookingStatus.CONFIRMED,
                 totalPrice,
+            });
+
+            console.log('[createBooking] created booking:', {
+                bookingId: String((result as any)._id),
+                memberId: String((result as any).memberId),
+                propertyId: String((result as any).propertyId),
+                status: (result as any).bookingStatus,
             });
 
             await this.markDatesAsBooked(
@@ -98,9 +105,30 @@ export class BookingService {
     /** 3. FOYDALANUVCHI BRONLARINI OLISH **/
     public async getMyBookings(memberId: Types.ObjectId, input: BookingsInquiry): Promise<Bookings> {
         const { page, limit, bookingStatus } = input;
-        const match: T = { memberId: memberId };
+        const normalizedMemberId = shapeIntoMongoObjectId(memberId as any);
+        const memberIdAsString = String(memberId);
+        const match: T = {
+            $or: [
+                { memberId: normalizedMemberId },
+                { memberId: memberIdAsString },
+            ],
+        };
         
         if (bookingStatus) match.bookingStatus = bookingStatus;
+
+        const [countByObjectId, countByString] = await Promise.all([
+            this.bookingModel.countDocuments({ memberId: normalizedMemberId }).exec(),
+            this.bookingModel.countDocuments({ memberId: memberIdAsString }).exec(),
+        ]);
+
+        console.log('[getMyBookings] query context:', {
+            memberIdRaw: memberId,
+            memberIdObjectId: String(normalizedMemberId),
+            memberIdString: memberIdAsString,
+            bookingStatus: bookingStatus ?? null,
+            countByObjectId,
+            countByString,
+        });
     
         const result = await this.bookingModel.aggregate([
             { $match: match },
