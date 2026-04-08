@@ -16,11 +16,12 @@ export const availablePropertySorts = [
     'propertyLikes',
     'propertyViews',
     'propertyRank',
+    'propertyRatingCount',
     'propertyPrice',
 ];
 
 export const availableBoardArticleSorts = ['createdAt', 'updatedAt', 'articleLikes', 'articleViews'];
-export const availableCommentSorts = ['createdAt', 'updatedAt'];
+export const availableCommentSorts = ['createdAt', 'updatedAt', 'commentStars'];
 
 /** IMAGE CONFIGURATION **/
 export const validMimeTypes = ['image/png', 'image/jpg', 'image/jpeg'];

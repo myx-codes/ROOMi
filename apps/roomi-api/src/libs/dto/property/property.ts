@@ -45,8 +45,11 @@ export class Property {
     @Field(() => Int)
     propertyComments: number;
 
-    @Field(() => Int)
+    @Field(() => Float)
     propertyRank: number;
+
+    @Field(() => Int)
+    propertyRatingCount: number;
 
     @Field(() => [String])
     propertyImages: string[];

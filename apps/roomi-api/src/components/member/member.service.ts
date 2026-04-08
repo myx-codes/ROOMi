@@ -25,7 +25,23 @@ export class MemberService {
     private readonly likeService: LikeService
     ){}
 
+    private async ensureSingleAdmin(memberType?: MemberType, excludeMemberId?: Types.ObjectId): Promise<void> {
+     if (memberType !== MemberType.ADMIN) return;
+
+     const search: T = {
+          memberType: MemberType.ADMIN,
+          memberStatus: { $ne: MemberStatus.DELETE },
+     };
+
+     if (excludeMemberId) search._id = { $ne: excludeMemberId };
+
+     const existingAdmin = await this.memberModel.exists(search);
+     if (existingAdmin) throw new BadRequestException(Message.ADMIN_ALREADY_EXISTS);
+    }
+
     public async signup(input: MemberInput): Promise<Member>{
+     await this.ensureSingleAdmin(input.memberType);
+
      //Hash Password
      input.memberPassword = await this.authService.hashPassword(input.memberPassword)
 
@@ -65,6 +81,11 @@ export class MemberService {
      };
 
     public async updateMember(memberId: Types.ObjectId, input: MemberUpdate): Promise<Member>{
+     // User self-update does not allow role/status escalation.
+     delete (input as any)._id;
+     delete (input as any).memberType;
+     delete (input as any).memberStatus;
+
      const result = await this.memberModel.findOneAndUpdate(
           {
           _id: memberId,
@@ -159,6 +180,8 @@ export class MemberService {
     };
 
     public async updateMembersByAdmin(input: MemberUpdate): Promise<Member>{
+     await this.ensureSingleAdmin(input.memberType, input._id);
+
      const result = await this.memberModel.findOneAndUpdate({_id: input._id}, input, {new: true})
      .exec();
      if(!result) throw new InternalServerErrorException(Message.UPDATE_FAILED)

@@ -20,6 +20,7 @@ export enum Message {
     TOKEN_NOT_EXIST = 'Bearer Token is not provided!',
     ONLY_SPECIFIC_ROLES_ALLOWED = 'Allowed only for members with specific roles!',
     NOT_ALLOWED_REQUEST = 'Not Allowed Request!',
+    ADMIN_ALREADY_EXISTS = 'Admin already exists. Only one admin is allowed!',
     
     // File & Validation
     PROVIDE_ALLOWED_FORMAT = 'Please provide jpg, jpeg or png images!',

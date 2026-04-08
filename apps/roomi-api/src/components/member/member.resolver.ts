@@ -154,9 +154,12 @@ export class MemberResolver {
     };
 
     // Authorized APIs(Admin only)
+    @Roles(MemberType.ADMIN)
+    @UseGuards(RolesGuard)
     @Mutation(() => Member)
     public async updateMembersByAdmin( @Args("input") input: MemberUpdate): Promise<Member>{
         console.log("Mutation: updateMembersByAdmin");
+        input._id = shapeIntoMongoObjectId(input._id);
         return await this.memberService.updateMembersByAdmin(input);
     };
 

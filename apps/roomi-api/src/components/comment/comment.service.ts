@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { MemberService } from '../member/member.service';
@@ -11,24 +11,56 @@ import { CommentUpdate } from '../../libs/dto/comment/comment.update';
 import { Comment, Comments } from '../../libs/dto/comment/comment';
 import { lookupMember } from '../../libs/config';
 import { T } from '../../libs/types/common';
+import { RatingService } from '../rating/rating.service';
 
 @Injectable()
-export class CommentService {
+export class CommentService implements OnModuleInit {
+    private legacyCommentIndexChecked = false;
+
     constructor(
         @InjectModel('Comment') private readonly commentModel: Model<Comment>,
         private readonly memberService: MemberService,
         private readonly propertyService: PropertyService,
         private readonly boardArticleService: BoardArticleService,
+        private readonly ratingService: RatingService,
     ) {}
+
+    public async onModuleInit(): Promise<void> {
+        await this.dropLegacyCommentUniqueIndex();
+    }
+
+    private async dropLegacyCommentUniqueIndex(): Promise<void> {
+        if (this.legacyCommentIndexChecked) return;
+
+        try {
+            const indexes = await this.commentModel.collection.indexes();
+            for (const index of indexes) {
+                const key = index?.key ?? {};
+                const isLegacyUnique = index?.unique && key.memberId === 1 && key.commentRefId === 1;
+                const indexName = index?.name;
+
+                if (isLegacyUnique && indexName) {
+                    await this.commentModel.collection.dropIndex(indexName);
+                    console.log(`Dropped legacy comment unique index: ${indexName}`);
+                }
+            }
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            console.log('Legacy comment index cleanup skipped:', errorMessage);
+        } finally {
+            this.legacyCommentIndexChecked = true;
+        }
+    }
     
     public async createComment(memberId: Types.ObjectId, input: CommentInput): Promise<Comment> {
+        await this.dropLegacyCommentUniqueIndex();
         input.memberId = memberId;
 
         let result: Comment | null = null;
         try {
             result = await this.commentModel.create(input);
         } catch (err) {
-            console.log('Error, Service.model:', err.message);
+            console.log('Error, Service.model:', err);
             throw new BadRequestException(Message.CREATE_FAILED);
         }
 
@@ -39,6 +71,14 @@ export class CommentService {
                     targetKey: 'propertyComments',
                     modifier: 1,
                 });
+                if (typeof input.commentStars === 'number') {
+                    await this.ratingService.upsertPropertyRatingByComment({
+                        commentId: result._id,
+                        memberId,
+                        propertyId: input.commentRefId,
+                        ratingValue: input.commentStars,
+                    });
+                }
                 break;
             case CommentGroup.ARTICLE:
                 await this.boardArticleService.boardArticleStatsEditor({
@@ -72,10 +112,19 @@ export class CommentService {
                 commentStatus: CommentStatus.ACTIVE,
             },
             input,
-            { new: true },
+            { new: true, runValidators: true },
         );
 
         if (!result) throw new InternalServerErrorException(Message.UPDATE_FAILED);
+
+        if (typeof input.commentStars === 'number' && result.commentGroup === CommentGroup.PROPERTY) {
+            await this.ratingService.upsertPropertyRatingByComment({
+                commentId: result._id,
+                memberId,
+                propertyId: result.commentRefId,
+                ratingValue: input.commentStars,
+            });
+        }
 
         return result;
     };
@@ -114,6 +163,11 @@ export class CommentService {
     public async removeCommentByAdmin(input: Types.ObjectId): Promise<Comment> {
         const result = await this.commentModel.findByIdAndDelete(input);
         if (!result) throw new InternalServerErrorException(Message.REMOVE_FAILED);
+
+        if (result.commentGroup === CommentGroup.PROPERTY) {
+            await this.ratingService.removePropertyRatingByComment(result._id);
+        }
+
         return result;
     }
 

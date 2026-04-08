@@ -9,6 +9,7 @@ import CommentSchema from '../../schemas/Comment.model';
 import { PropertyModule } from '../property/property.module';
 import { BoardArticle } from '../../libs/dto/board-article/board-article';
 import { BoardArticleModule } from '../board-article/board-article.module';
+import { RatingModule } from '../rating/rating.module';
 
 @Module({
   imports: [
@@ -21,7 +22,8 @@ import { BoardArticleModule } from '../board-article/board-article.module';
     AuthModule,
     MemberModule,
     PropertyModule,
-    BoardArticleModule
+    BoardArticleModule,
+    RatingModule,
   ],
   providers: [CommentResolver, CommentService],
   exports: []

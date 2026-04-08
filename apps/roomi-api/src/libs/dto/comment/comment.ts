@@ -1,4 +1,4 @@
-import { Field, ID, ObjectType } from '@nestjs/graphql';
+import { Field, ID, Int, ObjectType } from '@nestjs/graphql';
 import { Types } from 'mongoose'; // ObjectId xatoligini oldini olish uchun
 import { CommentGroup, CommentStatus } from '../../enums/comment.enum';
 import { Member, TotalCounter } from '../member/member';
@@ -16,6 +16,9 @@ export class Comment {
 
     @Field(() => String)
     commentContent: string;
+
+    @Field(() => Int, { nullable: true })
+    commentStars?: number;
 
     @Field(() => ID)
     commentRefId: Types.ObjectId; // Dacha yoki Maqola IDsi

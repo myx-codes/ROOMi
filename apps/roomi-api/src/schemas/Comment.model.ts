@@ -25,6 +25,10 @@ const CommentSchema = new Schema(
             type: Number,
             min: [1, "Rating cannot be less than 1"],
             max: [5, "Rating cannot be more than 5"],
+            validate: {
+                validator: Number.isInteger,
+                message: 'Rating must be an integer between 1 and 5',
+            },
         },
 
         // Qaysi obyektga (Property, Article yoki Member) tegishli ekanligi
