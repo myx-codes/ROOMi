@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { RoomiBatchController } from './roomi-batch.controller';
 import { RoomiBatchService } from './roomi-batch.service';
+import { beforeEach, describe, expect, it } from '@jest/globals';
 
 describe('RoomiBatchController', () => {
   let roomiBatchController: RoomiBatchController;
@@ -15,8 +16,9 @@ describe('RoomiBatchController', () => {
   });
 
   describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(roomiBatchController.getHello()).toBe('Hello World!');
+    it('should return "ROOMi-batch"', () => {
+      expect(roomiBatchController.getHello()).toBe('ROOMi-batch');
     });
   });
 });
+

@@ -9,4 +9,9 @@ export class RoomiBatchController {
   getHello(): string {
     return this.roomiBatchService.getHello();
   }
+
+  @Get('health')
+  getHealth(): { status: string; uptimeSec: number; now: string } {
+    return this.roomiBatchService.getHealth();
+  }
 }

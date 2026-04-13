@@ -39,6 +39,7 @@ export enum PropertyLocation {
     BOSTONLIQ = 'BOSTONLIQ',
     ZAAMIN = 'ZAAMIN',
     CHIMGAN = 'CHIMGAN',
-    CHODAK = 'CHODAK'
+    CHODAK = 'CHODAK',
+    BALI = 'BALI'
 }
 registerEnumType(PropertyLocation, { name: 'PropertyLocation' });

@@ -38,7 +38,7 @@ export class PropertyService {
 
             return result;
         } catch (err) {
-            console.log("Error, Service.Model", err.message);
+            console.log("Error, Service.Model", err);
             throw new BadRequestException(Message.CREATE_FAILED);
         }
     };
@@ -247,7 +247,6 @@ export class PropertyService {
             let { propertyStatus, deletedAt } = input;
             const search: T = {
                 _id: input._id,
-                propertyStatus: PropertyStatus.ACTIVE,
             };
             
             
@@ -255,7 +254,7 @@ export class PropertyService {
             
             const result = await this.propertyModel
             .findOneAndUpdate(search, input, {
-                new: true,
+                returnDocument: 'after',
             })
             .exec();
             if (!result) throw new InternalServerErrorException(Message.UPDATE_FAILED);
