@@ -10,12 +10,20 @@ import { DatabaseModule } from './database/database.module';
 import { T } from './libs/types/common';
 import { SocketModule } from './socket/socket.module';
 
+const readBoolean = (value: string | undefined, defaultValue: boolean): boolean => {
+  if (!value) return defaultValue;
+  return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase());
+};
+
+const enableIntrospection = readBoolean(process.env.GRAPHQL_INTROSPECTION, true);
+
 @Module({
   imports: [
     ConfigModule.forRoot(), 
     GraphQLModule.forRoot({
     driver: ApolloDriver,
-    playground: true,
+    playground: enableIntrospection,
+    introspection: enableIntrospection,
     uploads: false,
     autoSchemaFile: true,
     bodyParserConfig: {

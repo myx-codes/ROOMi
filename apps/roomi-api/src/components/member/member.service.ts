@@ -16,6 +16,8 @@ import { LikeGroup } from '../../libs/enums/like.enum';
 import { LikeService } from '../like/like.service';
 import { lookupAuthMemberLiked } from '../../libs/config';
 
+const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 @Injectable()
 export class MemberService {
 
@@ -60,8 +62,14 @@ export class MemberService {
     public async login(input: LoginInput): Promise<Member>{
 
          const { memberNick, memberPassword } = input 
+         const normalizedMemberNick = memberNick?.trim();
+         if(!normalizedMemberNick){
+          throw new InternalServerErrorException(Message.NO_MEMBER_NICK);
+         }
+
+         const memberNickRegex = new RegExp(`^${escapeRegex(normalizedMemberNick)}$`, 'i');
          const response = await this.memberModel
-         .findOne({memberNick: memberNick})
+         .findOne({memberNick: memberNickRegex})
          .select('+memberPassword')
          .exec();
 

@@ -1,0 +1,86 @@
+services:
+  roomi-mongo:
+    image: mongo:7
+    container_name: roomi-mongo
+    restart: unless-stopped
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    volumes:
+      - roomi-mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - roomi-net
+
+  roomi-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: roomi-backend:latest
+    container_name: roomi-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT_API: ${PORT_API:-3008}
+      MONGO_DEV: ${MONGO_DEV:-mongodb://roomi-mongo:27017/roomi}
+      MONGO_PROD: ${MONGO_PROD:-mongodb://roomi-mongo:27017/roomi}
+      GRAPHQL_INTROSPECTION: ${GRAPHQL_INTROSPECTION:-true}
+      SECRET_TOKEN: ${SECRET_TOKEN:-replace-with-strong-secret}
+      AUTH_COOKIE_SAME_SITE: ${AUTH_COOKIE_SAME_SITE:-lax}
+      AUTH_COOKIE_PATH: ${AUTH_COOKIE_PATH:-/}
+      AUTH_COOKIE_MAX_AGE_MS: ${AUTH_COOKIE_MAX_AGE_MS:-2592000000}
+    command: ["node", "dist/apps/roomi-api/main"]
+    ports:
+      - "${PORT_API:-3008}:${PORT_API:-3008}"
+    volumes:
+      - ./uploads:/app/uploads
+    depends_on:
+      roomi-mongo:
+        condition: service_healthy
+    networks:
+      - roomi-net
+
+  roomi-batch:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: roomi-backend:latest
+    container_name: roomi-batch
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT_BATCH: ${PORT_BATCH:-3006}
+      MONGO_DEV: ${MONGO_DEV:-mongodb://roomi-mongo:27017/roomi}
+      MONGO_PROD: ${MONGO_PROD:-mongodb://roomi-mongo:27017/roomi}
+      BATCH_TIMEZONE: ${BATCH_TIMEZONE:-Asia/Tashkent}
+      BATCH_DRY_RUN: ${BATCH_DRY_RUN:-false}
+      BATCH_LOCK_TTL_MS: ${BATCH_LOCK_TTL_MS:-600000}
+      BATCH_WAITING_BOOKING_TTL_HOURS: ${BATCH_WAITING_BOOKING_TTL_HOURS:-24}
+      BATCH_PENDING_PAYMENT_TTL_HOURS: ${BATCH_PENDING_PAYMENT_TTL_HOURS:-24}
+      BATCH_READ_NOTICE_RETENTION_DAYS: ${BATCH_READ_NOTICE_RETENTION_DAYS:-30}
+      BATCH_OCCUPIED_AVAILABILITY_RETENTION_DAYS: ${BATCH_OCCUPIED_AVAILABILITY_RETENTION_DAYS:-90}
+    command: ["node", "dist/apps/roomi-batch/main"]
+    depends_on:
+      roomi-mongo:
+        condition: service_healthy
+      roomi-api:
+        condition: service_started
+    networks:
+      - roomi-net
+
+volumes:
+  roomi-mongo-data:
+
+networks:
+  roomi-net:
+    driver: bridge
