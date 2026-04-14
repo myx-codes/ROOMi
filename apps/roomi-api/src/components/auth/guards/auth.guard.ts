@@ -1,6 +1,6 @@
 import { BadRequestException, CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from '../auth.service';
-import { Message } from 'apps/roomi-api/src/libs/enums/common.enum';
+import { Message } from '../../../libs/enums/common.enum';
 import { getTokenFromRequest, hasValidCsrf, isMutationOperation } from '../auth-cookie.util';
 
  // AUTHENTICATION GUARD => TAMGA

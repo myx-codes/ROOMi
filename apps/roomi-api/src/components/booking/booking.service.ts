@@ -70,14 +70,16 @@ export class BookingService {
                     propertyId: input.propertyId,
                 });
             } catch (noticeErr) {
-                console.error('Booking created, but notification failed:', noticeErr?.message || noticeErr);
+                const errorMessage = noticeErr instanceof Error ? noticeErr.message : String(noticeErr);
+                console.error('Booking created, but notification failed:', errorMessage);
             }
 
 
             return result as unknown as Booking;
         } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
             console.error("Error in createBooking:", err);
-            throw new InternalServerErrorException("Bron qilishda xatolik yuz berdi: " + err.message);
+            throw new InternalServerErrorException("Bron qilishda xatolik yuz berdi: " + errorMessage);
         }
     }
 
@@ -157,6 +159,76 @@ export class BookingService {
         return {
             list: result[0]?.list || [],
             metaCounter: result[0]?.metaCounter || [{ total: 0 }],
+        };
+    }
+
+    /** 4. AGENTGA TEGISHLI PROPERTY BRONLARINI OLISH **/
+    public async getBookingsForMyProperties(agentId: Types.ObjectId, input: BookingsInquiry): Promise<Bookings> {
+        const { page, limit, bookingStatus } = input;
+        const agentIdAsString = String(agentId);
+
+        const result = await this.bookingModel.aggregate([
+            ...(bookingStatus ? [{ $match: { bookingStatus } }] : []),
+            {
+                $addFields: {
+                    propertyIdObj: {
+                        $convert: {
+                            input: '$propertyId',
+                            to: 'objectId',
+                            onError: null,
+                            onNull: null,
+                        },
+                    },
+                    memberIdObj: {
+                        $convert: {
+                            input: '$memberId',
+                            to: 'objectId',
+                            onError: null,
+                            onNull: null,
+                        },
+                    },
+                },
+            },
+            {
+                $lookup: {
+                    from: 'properties',
+                    localField: 'propertyIdObj',
+                    foreignField: '_id',
+                    as: 'propertyData',
+                },
+            },
+            { $unwind: { path: '$propertyData', preserveNullAndEmptyArrays: false } },
+            {
+                $match: {
+                    $expr: {
+                        $eq: [{ $toString: '$propertyData.memberId' }, agentIdAsString],
+                    },
+                },
+            },
+            { $sort: { createdAt: -1 } },
+            {
+                $facet: {
+                    list: [
+                        { $skip: (page - 1) * limit },
+                        { $limit: limit },
+                        {
+                            $lookup: {
+                                from: 'members',
+                                localField: 'memberIdObj',
+                                foreignField: '_id',
+                                as: 'memberData',
+                            },
+                        },
+                        { $unwind: { path: '$memberData', preserveNullAndEmptyArrays: true } },
+                    ],
+                    metaCounter: [{ $count: 'total' }],
+                },
+            },
+        ]).exec();
+
+        return {
+            list: result[0]?.list || [],
+            metaCounter: result[0]?.metaCounter?.length ? result[0].metaCounter : [{ total: 0 }],
         };
     }
 }

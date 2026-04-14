@@ -7,6 +7,9 @@ import { AuthGuard } from '../auth/guards/auth.guard';
 import { AuthMember } from '../auth/decorators/authMember.decorator';
 import { Types } from 'mongoose';
 import { formatDateOnly } from '../../libs/config';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { MemberType } from '../../libs/enums/member.enum';
+import { RolesGuard } from '../auth/guards/roles.guard';
 
 @Resolver(() => Booking)
 export class BookingResolver {
@@ -28,6 +31,16 @@ export class BookingResolver {
         @AuthMember('_id') memberId: Types.ObjectId,
     ): Promise<Bookings> {
         return await this.bookingService.getMyBookings(memberId, input);
+    }
+
+    @Roles(MemberType.AGENT)
+    @UseGuards(RolesGuard)
+    @Query(() => Bookings)
+    async getBookingsForMyProperties(
+        @Args('input') input: BookingsInquiry,
+        @AuthMember('_id') memberId: Types.ObjectId,
+    ): Promise<Bookings> {
+        return await this.bookingService.getBookingsForMyProperties(memberId, input);
     }
 
     @ResolveField(() => String)
