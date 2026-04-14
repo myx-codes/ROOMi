@@ -5,4 +5,4 @@ git reset --hard
 git checkout main
 git pull origin main
 
-docker compuse up -d
+docker compose up -d
