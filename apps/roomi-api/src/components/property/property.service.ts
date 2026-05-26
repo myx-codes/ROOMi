@@ -295,6 +295,30 @@ export class PropertyService {
                 .exec() as Property; // 3-TUZATISH: Qaytuvchi qiymatni majburlab 'Property' deb belgilaymiz
         };
 
+        public async likeTargetProperty(memberId: Types.ObjectId, likeRefId: Types.ObjectId): Promise<Property> {
+            const target = await this.propertyModel.findOne({
+                _id: likeRefId,
+                propertyStatus: PropertyStatus.ACTIVE,
+            }).exec();
+            if (!target) throw new InternalServerErrorException(Message.NO_DATA_FOUND);
+
+            const input = {
+                memberId,
+                likeRefId,
+                likeGroup: LikeGroup.PROPERTY,
+            };
+
+            const modifier: number = await this.likeService.togglike(input);
+            const result = await this.propertyStatsEditor({
+                _id: likeRefId,
+                targetKey: 'propertyLikes',
+                modifier,
+            });
+
+            if (!result) throw new InternalServerErrorException(Message.SOMETHING_WENT_WRONG);
+            return result;
+        };
+
 
         public async getFavorites(memberId: Types.ObjectId, input: OrdinaryInquiry): Promise<Properties>{
             return await this.likeService.getFavoriteProperties(memberId, input);
