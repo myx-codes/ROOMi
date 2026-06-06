@@ -7,6 +7,7 @@ export const JOB_NAMES = {
   NOTICE_RETENTION: 'notice-retention',
   AVAILABILITY_CLEANUP: 'availability-cleanup',
   PROPERTY_RANK_REBUILD: 'property-rank-rebuild',
+  PRICING_SYNC: 'pricing-sync',
 } as const;
 
 export const DEFAULT_LOCK_TTL_MS = toPositiveInt(process.env.BATCH_LOCK_TTL_MS, 10 * 60 * 1000);
@@ -25,6 +26,10 @@ export const DEFAULT_READ_NOTICE_RETENTION_DAYS = toPositiveInt(
 export const DEFAULT_OCCUPIED_AVAILABILITY_RETENTION_DAYS = toPositiveInt(
   process.env.BATCH_OCCUPIED_AVAILABILITY_RETENTION_DAYS,
   90,
+);
+export const DEFAULT_PRICING_LOOKAHEAD_DAYS = toPositiveInt(
+  process.env.BATCH_PRICING_LOOKAHEAD_DAYS,
+  180,
 );
 
 export function isBatchDryRunEnabled(): boolean {

@@ -31,6 +31,28 @@
 $ npm install
 ```
 
+## AI chatbot setup
+
+By default the chatbot is wired to Ollama with an OpenAI-compatible API.
+
+```bash
+# start Ollama locally
+$ ollama serve
+
+# pull a lightweight model
+$ ollama pull gemma3:1b
+```
+
+Environment variables:
+
+```bash
+AI_PROVIDER=ollama
+AI_BASE_URL=http://localhost:11434/v1
+AI_MODEL=gemma3:1b
+```
+
+If you run the Docker stack, the `roomi-ollama` service is included in `docker-compose.yml`.
+
 ## Compile and run the project
 
 ```bash

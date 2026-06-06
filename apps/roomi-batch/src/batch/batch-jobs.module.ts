@@ -10,6 +10,7 @@ import { AvailabilityCleanupJob } from './jobs/availability-cleanup.job';
 import { BookingLifecycleJob } from './jobs/booking-lifecycle.job';
 import { NotificationRetentionJob } from './jobs/notification-retention.job';
 import { PaymentLifecycleJob } from './jobs/payment-lifecycle.job';
+import { PricingSyncJob } from './jobs/pricing-sync.job';
 import { PropertyRankRebuildJob } from './jobs/property-rank-rebuild.job';
 import { BatchJobAuditSchema } from './schemas/batch-job-audit.schema';
 import { BatchLockSchema } from './schemas/batch-lock.schema';
@@ -38,6 +39,7 @@ import { BatchRunnerService } from './services/batch-runner.service';
     PaymentLifecycleJob,
     NotificationRetentionJob,
     AvailabilityCleanupJob,
+    PricingSyncJob,
     PropertyRankRebuildJob,
   ],
 })

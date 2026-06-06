@@ -27,6 +27,21 @@ export class Property {
     @Field(() => Float)
     propertyPrice: number; // Bir kunlik ijara narxi
 
+    @Field(() => Boolean, { defaultValue: true, nullable: true })
+    dynamicPricingEnabled?: boolean;
+
+    @Field(() => Float, { nullable: true })
+    weekendMultiplier?: number;
+
+    @Field(() => Float, { nullable: true })
+    minMultiplier?: number;
+
+    @Field(() => Float, { nullable: true })
+    maxMultiplier?: number;
+
+    @Field(() => Float, { nullable: true })
+    manualMultiplierOverride?: number | null;
+
     @Field(() => Float)
     propertySquare: number;
 

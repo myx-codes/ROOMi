@@ -1,5 +1,6 @@
 import { Field, ID, ObjectType } from '@nestjs/graphql';
 import { Types } from 'mongoose';
+import { AvailabilityStatus } from '../../enums/availability.enum';
 
 @ObjectType()
 export class Availability {
@@ -18,9 +19,57 @@ export class Availability {
     @Field(() => Boolean)
     isBooked: boolean;
 
+    @Field(() => AvailabilityStatus, { nullable: true })
+    availabilityStatus?: AvailabilityStatus;
+
+    @Field(() => Number)
+    pricePerDay: number;
+
     @Field(() => Date)
     createdAt: Date;
 
     @Field(() => Date)
     updatedAt: Date;
+}
+
+@ObjectType()
+export class PriceBreakdownItem {
+    @Field(() => String)
+    date: string;
+
+    @Field(() => Number)
+    basePrice: number;
+
+    @Field(() => Number)
+    multiplier: number;
+
+    @Field(() => Number)
+    pricePerDay: number;
+
+    @Field(() => Boolean)
+    isWeekend: boolean;
+
+    @Field(() => String)
+    mode: string;
+
+    @Field(() => [String])
+    explanation: string[];
+}
+
+@ObjectType()
+export class PricePreview {
+    @Field(() => [PriceBreakdownItem])
+    dates: PriceBreakdownItem[];
+
+    @Field(() => Number)
+    nights: number;
+
+    @Field(() => Number)
+    baseTotal: number;
+
+    @Field(() => Number)
+    totalPrice: number;
+
+    @Field(() => Number)
+    averagePrice: number;
 }

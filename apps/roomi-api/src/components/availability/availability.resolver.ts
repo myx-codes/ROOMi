@@ -1,7 +1,7 @@
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { AvailabilityService } from './availability.service';
-import { Availability } from '../../libs/dto/availability/availability';
-import { AvailabilityInput } from '../../libs/dto/availability/availability.input';
+import { Availability, PricePreview } from '../../libs/dto/availability/availability';
+import { AvailabilityInput, AvailabilityPricingInquiry } from '../../libs/dto/availability/availability.input';
 import { UseGuards } from '@nestjs/common';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { AuthMember } from '../auth/decorators/authMember.decorator';
@@ -29,5 +29,12 @@ export class AvailabilityResolver {
     ): Promise<Availability[]> {
         const propertyObjectId = shapeIntoMongoObjectId(propertyId);
         return await this.availabilityService.getPropertyAvailability(propertyObjectId);
+    }
+
+    @Query(() => PricePreview)
+    async getPropertyPricePreview(
+        @Args('input') input: AvailabilityPricingInquiry,
+    ): Promise<PricePreview> {
+        return await this.availabilityService.getPropertyPricePreview(input);
     }
 }

@@ -12,6 +12,8 @@ import { BoardArticleModule } from './board-article/board-article.module';
 import { NoticeResolver } from './notifaction/notice.resolver';
 import { NoticeService } from './notifaction/notice.service';
 import { NoticeModule } from './notifaction/notice.module';
+import { ChatModule } from './assistant/chat.module';
+import { AgentDashboardModule } from './agent-dashboard/agent-dashboard.module';
 
 @Module({
   imports: [
@@ -26,6 +28,8 @@ import { NoticeModule } from './notifaction/notice.module';
     ViewModule, 
     BoardArticleModule,
     NoticeModule,
+    ChatModule,
+    AgentDashboardModule,
   ],
   providers: [],
 })

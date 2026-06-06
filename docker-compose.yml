@@ -31,6 +31,11 @@ services:
       PORT_API: ${PORT_API:-3008}
       MONGO_DEV: ${MONGO_DEV:-mongodb://roomi-mongo:27017/roomi}
       MONGO_PROD: ${MONGO_PROD:-mongodb://roomi-mongo:27017/roomi}
+      AI_PROVIDER: ${AI_PROVIDER:-ollama}
+      AI_BASE_URL: ${AI_BASE_URL:-http://roomi-ollama:11434/v1}
+      AI_MODEL: ${AI_MODEL:-gemma3:1b}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://roomi-ollama:11434/v1}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma3:1b}
       GRAPHQL_INTROSPECTION: ${GRAPHQL_INTROSPECTION:-true}
       SECRET_TOKEN: ${SECRET_TOKEN:-replace-with-strong-secret}
       AUTH_COOKIE_SAME_SITE: ${AUTH_COOKIE_SAME_SITE:-lax}
@@ -44,6 +49,17 @@ services:
     depends_on:
       roomi-mongo:
         condition: service_healthy
+    networks:
+      - roomi-net
+
+  roomi-ollama:
+    image: ollama/ollama:latest
+    container_name: roomi-ollama
+    restart: unless-stopped
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - roomi-ollama-data:/root/.ollama
     networks:
       - roomi-net
 
@@ -80,6 +96,7 @@ services:
 
 volumes:
   roomi-mongo-data:
+  roomi-ollama-data:
 
 networks:
   roomi-net:

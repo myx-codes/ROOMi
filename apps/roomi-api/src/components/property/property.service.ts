@@ -82,6 +82,19 @@ export class PropertyService {
         return (doc as any).propertyPrice;
     }
 
+    public async getPropertyForPricing(propertyId: Types.ObjectId): Promise<any> {
+        const doc = await this.propertyModel
+            .findById(propertyId)
+            .select(
+                'propertyTitle propertyPrice propertyType propertyRank propertyLikes propertyViews propertyComments propertyRatingCount dynamicPricingEnabled weekendMultiplier minMultiplier maxMultiplier manualMultiplierOverride propertyStatus',
+            )
+            .lean()
+            .exec();
+
+        if (!doc) throw new InternalServerErrorException(Message.NO_DATA_FOUND);
+        return doc;
+    }
+
     
     public async updateProperty(memberId: Types.ObjectId, input: PropertyUpdate): Promise<Property> {
         let { propertyStatus, deletedAt } = input;

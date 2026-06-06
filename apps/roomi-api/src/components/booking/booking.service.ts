@@ -8,9 +8,10 @@ import { PropertyService } from '../property/property.service';
 import { BookingStatus } from '../../libs/enums/booking.enum';
 import { T } from '../../libs/types/common';
 import { Booking as BookingSchemaDoc } from '../../schemas/Booking.model';
-import { parseDateOnly, formatDateOnly, shapeIntoMongoObjectId } from '../../libs/config';
+import { shapeIntoMongoObjectId } from '../../libs/config';
 import { NoticeService } from '../notifaction/notice.service';
 import { NoticeCategory, NoticeStatus } from '../../libs/enums/notification.enum';
+import { BookingStatus as BookingStatusEnum } from '../../libs/enums/booking.enum';
 
 @Injectable()
 export class BookingService {
@@ -28,21 +29,43 @@ export class BookingService {
     ) {}
 
     public async createBooking(memberId: Types.ObjectId, input: BookingInput): Promise<Booking> {
+        const bookingStart = new Date(`${input.bookingStart}T00:00:00.000Z`);
+        const bookingEnd = new Date(`${input.bookingEnd}T00:00:00.000Z`);
+        let reservedDates: string[] = [];
+
         try {
-            const start = parseDateOnly(input.bookingStart);
-            const end = parseDateOnly(input.bookingEnd);
-            const nights = Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) || 1;
-            const pricePerNight = await this.propertyService.getPropertyPrice(input.propertyId);
-            const totalPrice = pricePerNight * nights;
+            const pricePreview = await this.availabilityService.getPropertyPricePreview({
+                propertyId: input.propertyId,
+                startDate: input.bookingStart,
+                endDate: input.bookingEnd,
+            });
+
+            if (pricePreview.nights <= 0) {
+                throw new BadRequestException('bookingEnd must be after bookingStart');
+            }
+
+            const overlappingBooking = await this.bookingModel.findOne({
+                propertyId: { $in: [new Types.ObjectId(input.propertyId), String(input.propertyId)] },
+                bookingStatus: { $in: [BookingStatusEnum.WAITING, BookingStatusEnum.CONFIRMED] },
+                bookingStart: { $lt: bookingEnd },
+                bookingEnd: { $gt: bookingStart },
+            }).lean().exec();
+
+            if (overlappingBooking) {
+                throw new BadRequestException('Selected dates are already booked');
+            }
+
+            reservedDates = await this.availabilityService.reserveBookingDates(input.propertyId, pricePreview.dates);
+
             const property = await this.propertyService.getProperty(null as any, input.propertyId);
 
             const result = await this.bookingModel.create({
                 ...input,
                 memberId,
-                bookingStart: start,
-                bookingEnd: end,
+                bookingStart,
+                bookingEnd,
                 bookingStatus: BookingStatus.CONFIRMED,
-                totalPrice,
+                totalPrice: pricePreview.totalPrice,
             });
 
             console.log('[createBooking] created booking:', {
@@ -52,23 +75,27 @@ export class BookingService {
                 status: (result as any).bookingStatus,
             });
 
-            await this.markDatesAsBooked(
-                input.propertyId,
-                input.bookingStart,
-                input.bookingEnd,
-                memberId
-            );
+            try {
+                await this.availabilityService.attachBookingToReservedDates(
+                    input.propertyId,
+                    reservedDates,
+                    new Types.ObjectId((result as any)._id),
+                );
+            } catch (attachErr) {
+                await this.bookingModel.findByIdAndDelete((result as any)._id).exec();
+                throw attachErr;
+            }
 
             try {
                 await this.noticeService.createNotification({
                     category: NoticeCategory.BOOKING,
                     status: NoticeStatus.UNREAD,
                     title: 'Yangi dacha bandlov!',
-                    content: `${property.propertyTitle} dachangiz ${input.bookingStart} dan ${input.bookingEnd} gacha bron qilindi.`,
-                    receiverId: property.memberId,
-                    creatorId: memberId,
-                    propertyId: input.propertyId,
-                });
+                content: `${property.propertyTitle} dachangiz ${input.bookingStart} dan ${input.bookingEnd} gacha bron qilindi. Jami: ${pricePreview.totalPrice}.`,
+                receiverId: property.memberId,
+                creatorId: memberId,
+                propertyId: input.propertyId,
+            });
             } catch (noticeErr) {
                 const errorMessage = noticeErr instanceof Error ? noticeErr.message : String(noticeErr);
                 console.error('Booking created, but notification failed:', errorMessage);
@@ -77,30 +104,21 @@ export class BookingService {
 
             return result as unknown as Booking;
         } catch (err) {
+            if (reservedDates.length) {
+                try {
+                    await this.availabilityService.releaseReservedBookingDates(input.propertyId, reservedDates);
+                } catch (releaseErr) {
+                    console.error('Failed to release reserved dates after booking error:', releaseErr);
+                }
+            }
+
+            if (err instanceof BadRequestException) {
+                throw err;
+            }
+
             const errorMessage = err instanceof Error ? err.message : String(err);
             console.error("Error in createBooking:", err);
             throw new InternalServerErrorException("Bron qilishda xatolik yuz berdi: " + errorMessage);
-        }
-    }
-
-    /** 2. TAQVIMNI BLOKLASH (YORDAMCHI FUNKSIYA) **/
-    private async markDatesAsBooked(
-        propertyId: Types.ObjectId, 
-        startStr: string, 
-        endStr: string, 
-        memberId: Types.ObjectId
-    ) {
-        let current = parseDateOnly(startStr);
-        const last = parseDateOnly(endStr);
-
-        while (current.getTime() <= last.getTime()) {
-            const dateStr = formatDateOnly(current);
-            await this.availabilityService.updateAvailability(memberId, {
-                propertyId,
-                date: dateStr,
-                isBooked: true,
-            });
-            current.setUTCDate(current.getUTCDate() + 1);
         }
     }
 

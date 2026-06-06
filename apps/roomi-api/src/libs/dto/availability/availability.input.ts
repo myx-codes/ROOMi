@@ -1,5 +1,5 @@
 import { Field, InputType, ID } from '@nestjs/graphql';
-import { IsBoolean, IsNotEmpty, IsString, Matches } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
 import { Types } from 'mongoose';
 
 @InputType()
@@ -19,4 +19,28 @@ export class AvailabilityInput {
     @IsBoolean()
     @Field(() => Boolean)
     isBooked: boolean;
+}
+
+@InputType()
+export class AvailabilityPricingInquiry {
+    @IsNotEmpty()
+    @Field(() => ID)
+    propertyId: Types.ObjectId;
+
+    @IsNotEmpty()
+    @IsString()
+    @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Sana YYYY-MM-DD formatida boʻlishi shart' })
+    @Field(() => String)
+    startDate: string;
+
+    @IsNotEmpty()
+    @IsString()
+    @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Sana YYYY-MM-DD formatida boʻlishi shart' })
+    @Field(() => String)
+    endDate: string;
+
+    @IsOptional()
+    @IsString()
+    @Field(() => String, { nullable: true })
+    sessionId?: string;
 }

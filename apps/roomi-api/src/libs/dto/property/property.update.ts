@@ -37,6 +37,26 @@ export class PropertyUpdate {
     propertyPrice?: number;
 
     @IsOptional()
+    @Field(() => Boolean, { nullable: true })
+    dynamicPricingEnabled?: boolean;
+
+    @IsOptional()
+    @Field(() => Float, { nullable: true })
+    weekendMultiplier?: number;
+
+    @IsOptional()
+    @Field(() => Float, { nullable: true })
+    minMultiplier?: number;
+
+    @IsOptional()
+    @Field(() => Float, { nullable: true })
+    maxMultiplier?: number;
+
+    @IsOptional()
+    @Field(() => Float, { nullable: true })
+    manualMultiplierOverride?: number | null;
+
+    @IsOptional()
     @Min(1)
     @Field(() => Float, { nullable: true })
     propertySquare?: number;

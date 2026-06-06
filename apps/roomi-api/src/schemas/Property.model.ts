@@ -37,6 +37,31 @@ const PropertySchema = new Schema(
             required: true,
         },
 
+        dynamicPricingEnabled: {
+            type: Boolean,
+            default: true,
+        },
+
+        weekendMultiplier: {
+            type: Number,
+            default: 1.22,
+        },
+
+        minMultiplier: {
+            type: Number,
+            default: 0.85,
+        },
+
+        maxMultiplier: {
+            type: Number,
+            default: 1.8,
+        },
+
+        manualMultiplierOverride: {
+            type: Number,
+            default: null,
+        },
+
         propertySquare: {
             type: Number,
             required: true,

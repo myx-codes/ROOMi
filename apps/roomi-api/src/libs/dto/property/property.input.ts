@@ -33,6 +33,26 @@ export class PropertyInput {
     @Field(() => Number)
     propertyPrice: number;
 
+    @IsOptional()
+    @Field(() => Boolean, { nullable: true })
+    dynamicPricingEnabled?: boolean;
+
+    @IsOptional()
+    @Field(() => Number, { nullable: true })
+    weekendMultiplier?: number;
+
+    @IsOptional()
+    @Field(() => Number, { nullable: true })
+    minMultiplier?: number;
+
+    @IsOptional()
+    @Field(() => Number, { nullable: true })
+    maxMultiplier?: number;
+
+    @IsOptional()
+    @Field(() => Number, { nullable: true })
+    manualMultiplierOverride?: number | null;
+
     @IsNotEmpty()
     @Field(() => Number)
     propertySquare: number;

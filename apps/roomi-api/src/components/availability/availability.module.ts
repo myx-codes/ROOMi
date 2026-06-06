@@ -4,6 +4,7 @@ import { AvailabilityResolver } from './availability.resolver';
 import { AvailabilityService } from './availability.service';
 import { AvailabilitySchema } from '../../schemas/Availability.model';
 import { AuthModule } from '../auth/auth.module';
+import { PropertyModule } from '../property/property.module';
 
 @Module({
   imports: [
@@ -11,7 +12,8 @@ import { AuthModule } from '../auth/auth.module';
     MongooseModule.forFeature([
       { name: 'Availability', schema: AvailabilitySchema }, // Schema nomini o'zgartiring
     ]),
-    AuthModule
+    AuthModule,
+    PropertyModule,
   ],
   providers: [
     AvailabilityResolver, 
