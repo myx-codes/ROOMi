@@ -25,6 +25,14 @@ type SupportedLanguage = 'en' | 'ko' | 'uz';
 
 type AssistantIntent = 'greeting' | 'thanks' | 'pricing' | 'availability' | 'general';
 
+interface StructuredBookingRequest {
+  dateText: string | null;
+  guestText: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  guestCount: number | null;
+}
+
 interface ProviderConfig {
   provider: 'ollama' | 'openai' | 'custom';
   baseUrl: string;
@@ -212,55 +220,31 @@ export class ChatService {
     language: SupportedLanguage,
   ): Promise<string> {
     const context = await this.buildAssistantContext(threadId, memberId, propertyId, language);
+    const structured = this.extractStructuredRequest(userMessage);
     const intent = this.detectIntent(userMessage);
 
-    if (intent === 'greeting') {
+    if (intent === "greeting" && !structured.dateText && !structured.guestText) {
       return this.buildGreetingReply(context, userMessage);
     }
 
-    if (intent === 'thanks') {
+    if (intent === "thanks" && !structured.dateText && !structured.guestText) {
       return this.buildThanksReply(context);
     }
 
-    if (intent === 'pricing' || intent === 'availability') {
-      const structured = this.extractStructuredRequest(userMessage);
-      if (!structured.dateText) {
-        return this.buildClarificationReply(context, intent);
-      }
-
-      if (!structured.guestText) {
-        return this.buildClarificationReply(context, intent);
-      }
+    const bookingIntent = this.resolveBookingFlowIntent(intent, context, userMessage, structured);
+    if (bookingIntent) {
+      const bookingReply = await this.buildBookingFlowReply(context, propertyId, structured);
+      if (bookingReply) return bookingReply;
     }
 
     const provider = this.resolveProviderConfig();
     const shouldAttemptProvider =
-      provider.enabled && (provider.provider === 'ollama' || provider.apiKey.length > 0 || provider.provider === 'custom');
+      provider.enabled && (provider.provider === "ollama" || provider.apiKey.length > 0 || provider.provider === "custom");
 
     if (shouldAttemptProvider) {
-      try {
-        const response = await axios.post(
-          `${provider.baseUrl}/chat/completions`,
-          {
-            model: provider.model,
-            temperature: 0.2,
-            messages: [
-              { role: 'system', content: this.buildSystemPrompt(context) },
-              ...context.recentMessages,
-              { role: 'user', content: userMessage },
-            ],
-          },
-          {
-            timeout: 20000,
-            headers: this.buildProviderHeaders(provider),
-          },
-        );
-
-        const text = response.data?.choices?.[0]?.message?.content?.trim();
-        if (text) return text;
-      } catch (error) {
-        console.warn('[chatbot] provider_failed, falling back to rule-based reply');
-      }
+      const providerMessages = this.getProviderMessages(context, userMessage);
+      const providerText = await this.callProvider(provider, context, providerMessages, userMessage);
+      if (providerText) return providerText;
     }
 
     return this.buildFallbackReply(context, userMessage);
@@ -308,6 +292,108 @@ export class ChatService {
     }
 
     return headers;
+  }
+
+  private getProviderMessages(
+    context: AssistantContext,
+    currentUserMessage: string,
+  ): Array<{ role: "user" | "assistant"; content: string }> {
+    const messages = [...context.recentMessages];
+    const last = messages[messages.length - 1];
+
+    if (last?.role === "user" && last.content.trim() === currentUserMessage.trim()) {
+      messages.pop();
+    }
+
+    return messages;
+  }
+
+  private async callProvider(
+    provider: ProviderConfig,
+    context: AssistantContext,
+    providerMessages: Array<{ role: "user" | "assistant"; content: string }>,
+    userMessage: string,
+  ): Promise<string | null> {
+    const endpoint = `${provider.baseUrl}/chat/completions`;
+
+    try {
+      const response = await axios.post(
+        endpoint,
+        {
+          model: provider.model,
+          temperature: 0.2,
+          messages: [
+            { role: "system", content: this.buildSystemPrompt(context) },
+            ...providerMessages,
+            { role: "user", content: userMessage },
+          ],
+        },
+        {
+          timeout: 20000,
+          headers: this.buildProviderHeaders(provider),
+        },
+      );
+
+      const text = response.data?.choices?.[0]?.message?.content?.trim();
+      if (text) return text;
+    } catch (error) {
+      this.logProviderFailure(provider, endpoint, error);
+    }
+
+    if (provider.provider === "ollama") {
+      return this.callNativeOllamaProvider(provider, context, providerMessages, userMessage);
+    }
+
+    return null;
+  }
+
+  private async callNativeOllamaProvider(
+    provider: ProviderConfig,
+    context: AssistantContext,
+    providerMessages: Array<{ role: "user" | "assistant"; content: string }>,
+    userMessage: string,
+  ): Promise<string | null> {
+    const nativeBaseUrl = provider.baseUrl.replace(/\/v1$/i, "");
+    const endpoint = `${nativeBaseUrl}/api/chat`;
+
+    try {
+      const response = await axios.post(
+        endpoint,
+        {
+          model: provider.model,
+          stream: false,
+          messages: [
+            { role: "system", content: this.buildSystemPrompt(context) },
+            ...providerMessages,
+            { role: "user", content: userMessage },
+          ],
+        },
+        {
+          timeout: 20000,
+          headers: this.buildProviderHeaders(provider),
+        },
+      );
+
+      const text = response.data?.message?.content?.trim();
+      if (text) return text;
+    } catch (error) {
+      this.logProviderFailure(provider, endpoint, error);
+    }
+
+    return null;
+  }
+
+  private logProviderFailure(provider: ProviderConfig, endpoint: string, error: unknown): void {
+    const status = axios.isAxiosError(error) ? error.response?.status ?? "network" : "unknown";
+    const message = error instanceof Error ? error.message : String(error);
+
+    console.warn("[chatbot] provider_failed", {
+      provider: provider.provider,
+      endpoint,
+      model: provider.model,
+      status,
+      message,
+    });
   }
 
   private async buildAssistantContext(
@@ -390,6 +476,141 @@ export class ChatService {
     return sections.join('\n');
   }
 
+  private resolveBookingFlowIntent(
+    intent: AssistantIntent,
+    context: AssistantContext,
+    userMessage: string,
+    structured: StructuredBookingRequest,
+  ): "pricing" | "availability" | null {
+    if (intent === "pricing" || intent === "availability") return intent;
+    if (structured.dateText || structured.guestText) return "pricing";
+    if (this.isBookingContinuation(context, userMessage)) return "pricing";
+    return null;
+  }
+
+  private isBookingContinuation(context: AssistantContext, currentUserMessage: string): boolean {
+    const priorMessages = this.getProviderMessages(context, currentUserMessage);
+    const lastAssistant = [...priorMessages].reverse().find((message) => message.role === "assistant");
+    const content = lastAssistant?.content.toLowerCase() ?? "";
+
+    return /(date|dates|guest count|guests|property name|property id|exact price|availability|sana|mehmon|narx|mavjud|날짜|투숙객|요금)/i.test(content);
+  }
+
+  private async buildBookingFlowReply(
+    context: AssistantContext,
+    propertyId: Types.ObjectId | null,
+    structured: StructuredBookingRequest,
+  ): Promise<string | null> {
+    const copy = this.getBookingCopy(context.language);
+
+    if (!propertyId) {
+      return copy.propertyRequired;
+    }
+
+    if (!structured.startDate || !structured.endDate) {
+      return structured.guestCount ? copy.missingDate : copy.clarify;
+    }
+
+    const dateRange = this.formatDateRangeForReply(structured.startDate, structured.endDate);
+
+    if (!structured.guestCount) {
+      return copy.missingGuest(dateRange);
+    }
+
+    try {
+      const preview = await this.availabilityService.getPropertyPricePreview({
+        propertyId,
+        startDate: structured.startDate,
+        endDate: structured.endDate,
+      });
+      const propertyName = this.extractPropertyName(context.propertySummary) ?? "this property";
+      const lockedDates = preview.dates
+        .filter((item) => String(item.mode).toUpperCase() === "LOCKED")
+        .map((item) => item.date);
+
+      return copy.pricePreview(propertyName, dateRange, structured.guestCount, preview, lockedDates);
+    } catch (error) {
+      console.warn("[chatbot] price_preview_failed", {
+        propertyId: String(propertyId),
+        startDate: structured.startDate,
+        endDate: structured.endDate,
+        message: error instanceof Error ? error.message : String(error),
+      });
+      return copy.previewUnavailable;
+    }
+  }
+
+  private getBookingCopy(language: SupportedLanguage): {
+    clarify: string
+    missingGuest: (dateRange: string) => string
+    missingDate: string
+    propertyRequired: string
+    previewUnavailable: string
+    pricePreview: (
+      propertyName: string,
+      dateRange: string,
+      guestCount: number,
+      preview: PricePreview,
+      lockedDates: string[],
+    ) => string
+  } {
+    if (language === "ko") {
+      return {
+        clarify: "정확한 요금과 예약 가능 여부를 확인하려면 날짜와 투숙객 수를 보내 주세요.",
+        missingGuest: (dateRange: string) => `${dateRange}로 확인하겠습니다. 투숙객 수를 알려 주세요.`,
+        missingDate: "투숙객 수는 확인했습니다. 날짜도 보내 주시면 정확한 요금과 예약 가능 여부를 확인하겠습니다.",
+        propertyRequired: "정확히 확인하려면 숙소 이름이나 ID도 보내 주세요.",
+        previewUnavailable: "지금은 해당 날짜의 요금 확인이 어렵습니다. 잠시 후 다시 시도해 주세요.",
+        pricePreview: (propertyName, dateRange, guestCount, preview, lockedDates) => {
+          const availabilityText = lockedDates.length
+            ? `현재 예약이 어려운 날짜가 있습니다: ${lockedDates.join(", ")}.`
+            : "현재 가격 캘린더 기준으로 선택한 날짜는 예약 가능해 보입니다.";
+          return `${propertyName} 기준 ${dateRange}, ${guestCount}명 예상 요금은 총 ${this.formatMoney(preview.totalPrice)}입니다. 평균 1박 요금은 ${this.formatMoney(preview.averagePrice)}입니다. ${availabilityText}`;
+        },
+      };
+    }
+
+    if (language === "uz") {
+      return {
+        clarify: "Aniq narx va mavjudlikni tekshirish uchun sana va mehmonlar sonini yuboring.",
+        missingGuest: (dateRange: string) => `${dateRange} sanasi uchun tekshiraman. Mehmonlar sonini ham yuboring.`,
+        missingDate: "Mehmonlar sonini oldim. Aniq narx va mavjudlik uchun sanani ham yuboring.",
+        propertyRequired: "Aniq tekshirish uchun property nomi yoki ID sini ham yuboring.",
+        previewUnavailable: "Hozir bu sana uchun narxni tekshira olmadim. Birozdan keyin qayta urinib koering.",
+        pricePreview: (propertyName, dateRange, guestCount, preview, lockedDates) => {
+          const availabilityText = lockedDates.length
+            ? `Bu sanalarda band yoki yopiq kun bor: ${lockedDates.join(", ")}.`
+            : "Hozirgi narx kalendari boyicha bu sanalar mavjud korinyapti.";
+          return `${propertyName} uchun ${dateRange}, ${guestCount} ta mehmon: jami taxminiy narx ${this.formatMoney(preview.totalPrice)}. Ortacha bir kecha ${this.formatMoney(preview.averagePrice)}. ${availabilityText}`;
+        },
+      };
+    }
+
+    return {
+      clarify: "Send the dates and guest count and I will check the exact price and availability.",
+      missingGuest: (dateRange: string) => `I can check ${dateRange}. Send the guest count too, please.`,
+      missingDate: "Got the guest count. Send the date as well and I will check the exact price and availability.",
+      propertyRequired: "Send the property name or ID too, so I can check the exact price and availability.",
+      previewUnavailable: "I could not check that date right now. Please try again in a moment.",
+      pricePreview: (propertyName, dateRange, guestCount, preview, lockedDates) => {
+        const availabilityText = lockedDates.length
+          ? `Some selected nights are locked or unavailable: ${lockedDates.join(", ")}.`
+          : "The selected dates look available in the current pricing calendar.";
+        return `For ${propertyName}, ${dateRange}, ${guestCount} guest${guestCount === 1 ? "" : "s"}: estimated total is ${this.formatMoney(preview.totalPrice)}. Average nightly price is ${this.formatMoney(preview.averagePrice)}. ${availabilityText}`;
+      },
+    };
+  }
+
+  private formatMoney(value: number): string {
+    return `${Math.round(value).toLocaleString("en-US")} UZS`;
+  }
+
+  private formatDateRangeForReply(startDate: string, endDate: string): string {
+    const nextDay = this.addDays(startDate, 1);
+    if (endDate === nextDay) return startDate;
+    return `${startDate} to ${endDate}`;
+  }
+
   private buildFallbackReply(context: AssistantContext, userMessage: string): string {
     const normalized = userMessage.toLowerCase();
     const asksPrice = /price|narx|cost|tarif|weekend|week end/.test(normalized);
@@ -459,23 +680,254 @@ export class ChatService {
     return copy.general;
   }
 
-  private extractStructuredRequest(userMessage: string): { dateText: string | null; guestText: string | null } {
+  private extractStructuredRequest(userMessage: string): StructuredBookingRequest {
     const normalized = userMessage.trim();
-    const datePatterns = [
-      /\b\d{4}-\d{2}-\d{2}\b/,
-      /\b\d{2}\/\d{2}\/\d{4}\b/,
-      /\b(today|tomorrow|tonight|this weekend|next weekend)\b/i,
-      /\b(आज|내일|오늘|이번 주말|다음 주말)\b/i,
-    ];
-    const guestPatterns = [
-      /\b\d+\s*(guest|guests|person|people|pax|mehmon|mehmonlar)\b/i,
-      /\b(for\s+\d+)\b/i,
-    ];
+    const dateRange = this.extractDateRange(normalized);
+    const guestCount = this.extractGuestCount(normalized);
 
-    const dateText = datePatterns.some((pattern) => pattern.test(normalized)) ? normalized : null;
-    const guestText = guestPatterns.some((pattern) => pattern.test(normalized)) ? normalized : null;
+    return {
+      dateText: dateRange ? normalized : null,
+      guestText: guestCount ? normalized : null,
+      startDate: dateRange?.startDate ?? null,
+      endDate: dateRange?.endDate ?? null,
+      guestCount,
+    };
+  }
 
-    return { dateText, guestText };
+  private extractDateRange(message: string): { startDate: string; endDate: string } | null {
+    const normalized = message.toLowerCase().replace(/,/g, " ").replace(/\s+/g, " ").trim();
+
+    const isoRange = normalized.match(/\b(\d{4}-\d{2}-\d{2})(?:\s*(?:to|until|-|–|—)\s*(\d{4}-\d{2}-\d{2}))?\b/i);
+    if (isoRange?.[1] && this.isValidDateOnly(isoRange[1])) {
+      return this.normalizeDateRange(isoRange[1], isoRange[2]);
+    }
+
+    const slashRange = normalized.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s*(?:to|until|-|–|—)\s*(\d{1,2})\/(\d{1,2})\/(\d{4}))?\b/i);
+    if (slashRange?.[1]) {
+      const startDate = this.formatPartsAsDate(Number(slashRange[3]), Number(slashRange[2]) - 1, Number(slashRange[1]));
+      const endDate = slashRange[4]
+        ? this.formatPartsAsDate(Number(slashRange[6]), Number(slashRange[5]) - 1, Number(slashRange[4]))
+        : null;
+      if (startDate) return this.normalizeDateRange(startDate, endDate ?? undefined);
+    }
+
+    const relativeRange = this.extractRelativeDateRange(normalized);
+    if (relativeRange) return relativeRange;
+
+    const dayMonthRange = normalized.match(/\b(\d{1,2})\s*(?:-|to|until|–|—)\s*(\d{1,2})\s+([a-zA-Z]+)\b/i);
+    if (dayMonthRange?.[1]) {
+      const monthIndex = this.getMonthIndex(dayMonthRange[3]);
+      if (monthIndex !== null) {
+        const startDate = this.dateFromDayMonth(Number(dayMonthRange[1]), monthIndex);
+        const endDate = this.dateFromDayMonth(Number(dayMonthRange[2]), monthIndex);
+        if (startDate && endDate) return this.normalizeDateRange(startDate, endDate);
+      }
+    }
+
+    const monthDayRange = normalized.match(/\b([a-zA-Z]+)\s+(\d{1,2})\s*(?:-|to|until|–|—)\s*(?:([a-zA-Z]+)\s+)?(\d{1,2})\b/i);
+    if (monthDayRange?.[1]) {
+      const startMonth = this.getMonthIndex(monthDayRange[1]);
+      const endMonth = this.getMonthIndex(monthDayRange[3] || monthDayRange[1]);
+      if (startMonth !== null && endMonth !== null) {
+        const startDate = this.dateFromDayMonth(Number(monthDayRange[2]), startMonth);
+        const endDate = this.dateFromDayMonth(Number(monthDayRange[4]), endMonth);
+        if (startDate && endDate) return this.normalizeDateRange(startDate, endDate);
+      }
+    }
+
+    const dayMonth = normalized.match(/\b(\d{1,2})\s+([a-zA-Z]+)\b/i);
+    if (dayMonth?.[1]) {
+      const monthIndex = this.getMonthIndex(dayMonth[2]);
+      if (monthIndex !== null) {
+        const startDate = this.dateFromDayMonth(Number(dayMonth[1]), monthIndex);
+        if (startDate) return this.normalizeDateRange(startDate);
+      }
+    }
+
+    const monthDay = normalized.match(/\b([a-zA-Z]+)\s+(\d{1,2})\b/i);
+    if (monthDay?.[1]) {
+      const monthIndex = this.getMonthIndex(monthDay[1]);
+      if (monthIndex !== null) {
+        const startDate = this.dateFromDayMonth(Number(monthDay[2]), monthIndex);
+        if (startDate) return this.normalizeDateRange(startDate);
+      }
+    }
+
+    return null;
+  }
+
+  private extractRelativeDateRange(normalized: string): { startDate: string; endDate: string } | null {
+    if (/\b(today|tonight|오늘)\b/i.test(normalized)) {
+      const startDate = this.dateFromOffset(0);
+      return { startDate, endDate: this.addDays(startDate, 1) };
+    }
+
+    if (/\b(tomorrow|내일)\b/i.test(normalized)) {
+      const startDate = this.dateFromOffset(1);
+      return { startDate, endDate: this.addDays(startDate, 1) };
+    }
+
+    if (/\bnext weekend\b/i.test(normalized)) {
+      return this.weekendRange(1);
+    }
+
+    if (/\b(this weekend|weekend|이번 주말|다음 주말)\b/i.test(normalized)) {
+      return this.weekendRange(0);
+    }
+
+    return null;
+  }
+
+  private extractGuestCount(message: string): number | null {
+    const normalized = message.toLowerCase().replace(/,/g, " ").replace(/\s+/g, " ").trim();
+    const numericWithUnit = normalized.match(/\b(\d{1,2})\s*(guest|guests|person|people|pax|mehmon|mehmonlar|kishi|odam)\b/i);
+    if (numericWithUnit?.[1]) return this.normalizeGuestCount(Number(numericWithUnit[1]));
+
+    const forNumeric = normalized.match(/\bfor\s+(\d{1,2})\b/i);
+    if (forNumeric?.[1]) return this.normalizeGuestCount(Number(forNumeric[1]));
+
+    const wordMap: Record<string, number> = {
+      one: 1,
+      two: 2,
+      three: 3,
+      four: 4,
+      five: 5,
+      six: 6,
+      seven: 7,
+      eight: 8,
+      nine: 9,
+      ten: 10,
+      bir: 1,
+      ikki: 2,
+      uch: 3,
+      tort: 4,
+      besh: 5,
+      olti: 6,
+      yetti: 7,
+      sakkiz: 8,
+      toqqiz: 9,
+      on: 10,
+    };
+
+    const wordWithUnit = normalized.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten|bir|ikki|uch|tort|besh|olti|yetti|sakkiz|toqqiz|on)\s*(guest|guests|person|people|pax|mehmon|mehmonlar|kishi|odam)\b/i);
+    if (wordWithUnit?.[1]) return this.normalizeGuestCount(wordMap[wordWithUnit[1]]);
+
+    return null;
+  }
+
+  private normalizeGuestCount(value: number): number | null {
+    if (!Number.isInteger(value) || value < 1 || value > 30) return null;
+    return value;
+  }
+
+  private getMonthIndex(value: string): number | null {
+    const key = value.toLowerCase().replace(/\./g, "");
+    const months: Record<string, number> = {
+      january: 0,
+      jan: 0,
+      yanvar: 0,
+      february: 1,
+      feb: 1,
+      fevral: 1,
+      march: 2,
+      mar: 2,
+      mart: 2,
+      april: 3,
+      apr: 3,
+      aprel: 3,
+      may: 4,
+      june: 5,
+      jun: 5,
+      iyun: 5,
+      july: 6,
+      jul: 6,
+      iyul: 6,
+      august: 7,
+      aug: 7,
+      avgust: 7,
+      september: 8,
+      sep: 8,
+      sept: 8,
+      sentabr: 8,
+      october: 9,
+      oct: 9,
+      oktabr: 9,
+      november: 10,
+      nov: 10,
+      noyabr: 10,
+      december: 11,
+      dec: 11,
+      dekabr: 11,
+    };
+
+    return months[key] ?? null;
+  }
+
+  private dateFromDayMonth(day: number, monthIndex: number): string | null {
+    const now = new Date();
+    const currentYear = now.getUTCFullYear();
+    const candidate = new Date(Date.UTC(currentYear, monthIndex, day, 12, 0, 0, 0));
+    if (candidate.getUTCMonth() !== monthIndex || candidate.getUTCDate() !== day) return null;
+
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const candidateDay = new Date(candidate);
+    candidateDay.setUTCHours(0, 0, 0, 0);
+
+    if (candidateDay < today) {
+      candidate.setUTCFullYear(currentYear + 1);
+    }
+
+    return formatDateOnly(candidate);
+  }
+
+  private dateFromOffset(daysAhead: number): string {
+    const date = new Date();
+    date.setUTCHours(12, 0, 0, 0);
+    date.setUTCDate(date.getUTCDate() + daysAhead);
+    return formatDateOnly(date);
+  }
+
+  private weekendRange(weeksAhead: number): { startDate: string; endDate: string } {
+    const today = new Date();
+    today.setUTCHours(12, 0, 0, 0);
+    const daysUntilSaturday = (6 - today.getUTCDay() + 7) % 7;
+    const startOffset = daysUntilSaturday + weeksAhead * 7;
+    const startDate = this.dateFromOffset(startOffset);
+    return { startDate, endDate: this.addDays(startDate, 2) };
+  }
+
+  private formatPartsAsDate(year: number, monthIndex: number, day: number): string | null {
+    const date = new Date(Date.UTC(year, monthIndex, day, 12, 0, 0, 0));
+    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== monthIndex || date.getUTCDate() !== day) return null;
+    return formatDateOnly(date);
+  }
+
+  private normalizeDateRange(startDate: string, explicitEndDate?: string | null): { startDate: string; endDate: string } {
+    let endDate = explicitEndDate || this.addDays(startDate, 1);
+    if (this.compareDateOnly(endDate, startDate) <= 0) {
+      endDate = this.addDays(startDate, 1);
+    }
+
+    return { startDate, endDate };
+  }
+
+  private isValidDateOnly(value: string): boolean {
+    return /^\d{4}-\d{2}-\d{2}$/.test(value) && this.formatPartsAsDate(
+      Number(value.slice(0, 4)),
+      Number(value.slice(5, 7)) - 1,
+      Number(value.slice(8, 10)),
+    ) === value;
+  }
+
+  private compareDateOnly(left: string, right: string): number {
+    return left.localeCompare(right);
+  }
+
+  private addDays(dateOnly: string, days: number): string {
+    const date = new Date(`${dateOnly}T12:00:00.000Z`);
+    date.setUTCDate(date.getUTCDate() + days);
+    return formatDateOnly(date);
   }
 
   private pickVariantIndex(seed: string, length: number): number {

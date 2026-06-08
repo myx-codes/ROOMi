@@ -4,7 +4,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { LoggingInterceptor } from '../src/libs/interceptor/Logging.interceptor';
 import {graphqlUploadExpress} from "graphql-upload"
 import * as express from "express"
-import { WsAdapter } from '@nestjs/platform-ws';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 import cookieParser from 'cookie-parser';
 import { CSRF_HEADER_NAME } from './components/auth/auth-cookie.util';
 
@@ -33,7 +33,7 @@ async function bootstrap() {
   app.use(graphqlUploadExpress({ maxFileSize: 15000000, maxFiles: 10 }))
   app.use("/uploads", express.static('./uploads'))
 
-  app.useWebSocketAdapter(new WsAdapter(app));
+  app.useWebSocketAdapter(new IoAdapter(app));
   await app.listen(process.env.PORT_API ?? 3000);
   console.log('ROOMI-API PORT:', process.env.PORT_API);
 

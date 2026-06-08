@@ -7,17 +7,15 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { Server, WebSocket } from 'ws';
-import { Member } from '../libs/dto/member/member'; // O'z yo'lingizga moslang
+import { Server, Socket } from 'socket.io';
+import { Member } from '../libs/dto/member/member';
 import { AuthService } from '../components/auth/auth.service';
-import * as url from 'url';
 
-// ROOMi uchun maxsus event turlari
 enum RoomiEvents {
   INFO = 'info',
   MESSAGE = 'message',
-  PROPERTY_BOOKED = 'propertyBooked', // Kalendar yangilanishi uchun
-  NEW_BOOKING_ALERT = 'newBookingAlert', // Manager uchun bildirishnoma
+  PROPERTY_BOOKED = 'propertyBooked',
+  NEW_BOOKING_ALERT = 'newBookingAlert',
   GET_MESSAGES = 'getMessages',
 }
 
@@ -36,63 +34,74 @@ interface InfoPayload {
   action: 'joined' | 'left';
 }
 
-@WebSocketGateway({ transports: ['websocket'], secure: false })
+@WebSocketGateway({
+  path: '/socket.io',
+  transports: ['websocket', 'polling'],
+  cors: {
+    origin: true,
+    credentials: true,
+  },
+})
 export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
-  private logger: Logger = new Logger('RoomiSocketGateway');
-  private summaryClient: number = 0;
-  private clientsAuthMap = new Map<WebSocket, Member | null>();
+  private logger = new Logger('RoomiSocketGateway');
+  private summaryClient = 0;
+  private clientsAuthMap = new Map<string, Member | null>();
   private messagesList: MessagePayload[] = [];
 
   constructor(private authService: AuthService) {}
 
   @WebSocketServer()
-  server: Server;
+  server?: Server;
 
-  public afterInit(server: Server) {
-    this.logger.verbose(`ROOMi WebSocket Server Initialized. Total clients: [${this.summaryClient}]`);
+  afterInit() {
+    this.logger.verbose(`ROOMi Socket.IO Server Initialized`);
   }
 
-  /** AUTHENTICATION: Token orqali memberni aniqlash **/
-  private async retrieveAuth(req: any): Promise<Member | null> {
+  private async retrieveAuth(client: Socket): Promise<Member | null> {
     try {
-      const parseUrl = url.parse(req.url, true);
-      const { token } = parseUrl.query;
+      const token =
+        client.handshake.auth?.token ||
+        client.handshake.query?.token;
+
       if (!token) return null;
+
       return await this.authService.verifyToken(token as string);
-    } catch (err) {
+    } catch {
       return null;
     }
   }
 
-  /** CONNECTION HANDLE **/
-  public async handleConnection(client: WebSocket, req: any) {
-    const authMember = await this.retrieveAuth(req);
-    this.summaryClient++;
-    this.clientsAuthMap.set(client, authMember);
+  async handleConnection(client: Socket) {
+    const authMember = await this.retrieveAuth(client);
 
-    const clientNick: string = authMember?.memberNick ?? 'Guest';
+    this.summaryClient++;
+    this.clientsAuthMap.set(client.id, authMember);
+
+    const clientNick = authMember?.memberNick ?? 'Guest';
     this.logger.log(`Connected: ${clientNick} | Total: [${this.summaryClient}]`);
 
-    // Hamma mijozlarga yangi foydalanuvchi qo'shilgani haqida xabar
     const infoMsg: InfoPayload = {
       event: RoomiEvents.INFO,
       totalClients: this.summaryClient,
       memberData: authMember,
       action: 'joined',
     };
-    this.emitMessage(infoMsg);
 
-    // Yangi ulanishga chat tarixini yuborish
-    client.send(JSON.stringify({ event: RoomiEvents.GET_MESSAGES, list: this.messagesList }));
+    this.server?.emit(RoomiEvents.INFO, infoMsg);
+
+    client.emit(RoomiEvents.GET_MESSAGES, {
+      event: RoomiEvents.GET_MESSAGES,
+      list: this.messagesList,
+    });
   }
 
-  /** DISCONNECT HANDLE **/
-  public handleDisconnect(client: WebSocket) {
-    const authMember = this.clientsAuthMap.get(client);
-    this.summaryClient--;
-    this.clientsAuthMap.delete(client);
+  handleDisconnect(client: Socket) {
+    const authMember = this.clientsAuthMap.get(client.id);
 
-    const clientNick: string = authMember?.memberNick ?? 'Guest';
+    this.summaryClient = Math.max(this.summaryClient - 1, 0);
+    this.clientsAuthMap.delete(client.id);
+
+    const clientNick = authMember?.memberNick ?? 'Guest';
     this.logger.warn(`Disconnected: [${clientNick}] | Total: [${this.summaryClient}]`);
 
     const infoMsg: InfoPayload = {
@@ -101,68 +110,43 @@ export class SocketGateway implements OnGatewayInit, OnGatewayConnection, OnGate
       memberData: authMember ?? null,
       action: 'left',
     };
-    this.broadcastMessage(client, infoMsg);
+
+    this.server?.emit(RoomiEvents.INFO, infoMsg);
   }
 
-  /** CHAT MESSAGE HANDLER **/
-  @SubscribeMessage('message')
-  public async handleMessage(client: WebSocket, payload: string): Promise<void> {
-    const authMember = this.clientsAuthMap.get(client);
-    const newMessage: MessagePayload = { 
-        event: RoomiEvents.MESSAGE, 
-        text: payload, 
-        memberData: authMember || undefined 
+  @SubscribeMessage(RoomiEvents.MESSAGE)
+  async handleMessage(client: Socket, payload: string): Promise<void> {
+    const authMember = this.clientsAuthMap.get(client.id);
+
+    const newMessage: MessagePayload = {
+      event: RoomiEvents.MESSAGE,
+      text: payload,
+      memberData: authMember || undefined,
     };
 
     this.logger.verbose(`MSG from [${authMember?.memberNick ?? 'Guest'}]: ${payload}`);
 
     this.messagesList.push(newMessage);
-    if (this.messagesList.length >= 20) this.messagesList.shift(); // Oxirgi 20 ta xabarni saqlash
+    if (this.messagesList.length > 20) this.messagesList.shift();
 
-    this.emitMessage(newMessage);
+    this.server?.emit(RoomiEvents.MESSAGE, newMessage);
   }
 
-  /** * ROOMi EXCLUSIVE: Property band bo'lganda kalendarni yangilash 
-   * Bu funksiya PropertyService ichidan chaqiriladi
-   **/
   public sendPropertyUpdate(propertyId: string, bookedDates: string[]) {
-    const updatePayload: MessagePayload = {
+    this.server?.emit(RoomiEvents.PROPERTY_BOOKED, {
       event: RoomiEvents.PROPERTY_BOOKED,
       propertyId,
       data: { bookedDates },
-    };
-    this.emitMessage(updatePayload);
+    });
   }
 
-  /** * ROOMi EXCLUSIVE: Faqat Managerga bildirishnoma yuborish 
-   **/
   public sendNotificationToMember(memberId: string, notification: any) {
-    this.clientsAuthMap.forEach((member, client) => {
-      if (member?._id.toString() === memberId.toString() && client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify({
+    this.clientsAuthMap.forEach((member, socketId) => {
+      if (member?._id.toString() === memberId.toString()) {
+        this.server?.to(socketId).emit(RoomiEvents.NEW_BOOKING_ALERT, {
           event: RoomiEvents.NEW_BOOKING_ALERT,
-          data: notification
-        }));
-      }
-    });
-  }
-
-  /** YUBORISH USULLARI **/
-
-  // 1. Emit: Hammaga yuborish
-  private emitMessage(message: any) {
-    this.server.clients.forEach((client) => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify(message));
-      }
-    });
-  }
-
-  // 2. Broadcast: O'zidan tashqari hammaga yuborish
-  private broadcastMessage(sender: WebSocket, message: any) {
-    this.server.clients.forEach((client) => {
-      if (client !== sender && client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify(message));
+          data: notification,
+        });
       }
     });
   }
