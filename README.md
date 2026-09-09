@@ -1,122 +1,195 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# ROOMi — Backend API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+**GraphQL-first booking platform backend.** A NestJS monorepo covering the full reservation lifecycle: property listings, availability, bookings, payments, reviews, real-time notifications, and role-scoped dashboards for guests, agents, and administrators.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+![NestJS](https://img.shields.io/badge/NestJS-11-E0234E?logo=nestjs&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)
+![GraphQL](https://img.shields.io/badge/GraphQL-Apollo%205-E10098?logo=graphql&logoColor=white)
+![MongoDB](https://img.shields.io/badge/MongoDB-Mongoose%209-47A248?logo=mongodb&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 
-## Description
+> Frontend client: **[ROOMi-frontend](https://github.com/myx-codes/ROOMi-frontend)**
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+---
 
-## Project setup
+## About this project
 
-```bash
-$ npm install
+ROOMi is a personal project built to practise designing and operating a complete, production-shaped backend rather than a tutorial CRUD app. The goal was to work through the problems that only appear at system level: schema design across a dozen related domains, authorisation that differs per role, state that must stay consistent between HTTP and WebSocket clients, and background work that cannot live inside a request cycle.
+
+It has not served production traffic. Everything below describes the system as it is implemented in this repository.
+
+---
+
+## Architecture
+
+The repository is a NestJS monorepo with two deployable applications that share the same schemas, database layer, and libraries.
+
+```mermaid
+flowchart TB
+    Client["Web / Mobile clients"]
+    subgraph API["roomi-api"]
+        GQL["Apollo GraphQL<br/>schema-first + codegen"]
+        Guards["JWT auth + RBAC guards"]
+        Modules["14 domain modules"]
+        WS["Socket.IO gateway"]
+    end
+    subgraph Batch["roomi-batch"]
+        Cron["@nestjs/schedule<br/>cron workers"]
+    end
+    AI["LLM assistant<br/>Ollama / OpenAI-compatible"]
+    DB[("MongoDB<br/>Mongoose ODM")]
+
+    Client -->|"GraphQL over HTTP"| GQL
+    Client <-->|"live events"| WS
+    GQL --> Guards --> Modules --> DB
+    Modules --> AI
+    WS --> DB
+    Cron --> DB
 ```
 
-## AI chatbot setup
+### Applications
 
-By default the chatbot is wired to Ollama with an OpenAI-compatible API.
+| App | Entry point | Responsibility |
+|---|---|---|
+| `roomi-api` | `apps/roomi-api` | GraphQL API, authentication, WebSocket gateway, file uploads |
+| `roomi-batch` | `apps/roomi-batch` | Scheduled jobs — booking expiry, cleanup, periodic ranking updates |
+
+Splitting batch work into its own process keeps long-running jobs off the request path and lets the two scale independently.
+
+### Domain modules
+
+Business logic lives in `apps/roomi-api/src/components`, one module per bounded concern:
+
+`auth` · `member` · `property` · `availability` · `booking` · `payment` · `rating` · `comment` · `like` · `view` · `notification` · `board-article` · `agent-dashboard` · `assistant`
+
+Each module owns its resolvers, service layer, DTOs, and validation, so a change to booking rules stays inside the booking module.
+
+---
+
+## Implementation notes
+
+**GraphQL with generated types.** The schema is the contract. `codegen.ts` generates TypeScript types from it, so resolver signatures and the client stay in sync at compile time instead of at runtime.
+
+**Layered authorisation.** Authentication issues JWTs; authorisation is enforced by NestJS guards that resolve the caller's role (guest, agent, admin) before a resolver runs. Role checks are declarative rather than scattered through service code.
+
+**Real-time updates.** A Socket.IO gateway pushes booking state changes and notifications to connected clients, so a reservation confirmed by an agent appears on the guest's screen without a refresh.
+
+**Scheduled work.** `roomi-batch` uses `@nestjs/schedule` for jobs that must run independently of user requests — releasing expired unconfirmed bookings, clearing stale records, recomputing derived counters.
+
+**File handling.** Property images are uploaded through `graphql-upload` and served from a mounted volume, with a Docker volume so uploads survive container restarts.
+
+**AI assistant.** The `assistant` module talks to any OpenAI-compatible endpoint. It defaults to a locally hosted Ollama model, which means the assistant can be developed and demonstrated without a paid API key, and swapped to a hosted provider by changing environment variables alone.
+
+**Validation.** `class-validator` and `class-transformer` validate and shape every input DTO at the boundary, so invalid data never reaches the service layer.
+
+---
+
+## Tech stack
+
+| Layer | Technologies |
+|---|---|
+| Runtime | Node.js, TypeScript 5.7 |
+| Framework | NestJS 11 (monorepo) |
+| API | Apollo Server 5, `@nestjs/graphql`, GraphQL Codegen |
+| Database | MongoDB, Mongoose 9 |
+| Auth | `@nestjs/jwt`, bcryptjs, cookie-parser |
+| Real-time | Socket.IO, `@nestjs/websockets` |
+| Scheduling | `@nestjs/schedule` |
+| Uploads | graphql-upload |
+| AI | Ollama / OpenAI-compatible API via `@nestjs/axios` |
+| Tooling | ESLint, Prettier, Jest |
+| Deployment | Docker, Docker Compose, Nginx reverse proxy |
+
+---
+
+## Getting started
+
+### Prerequisites
+
+- Node.js 20+
+- MongoDB (local or Atlas)
+- Docker and Docker Compose (optional, for the full stack)
+- Ollama (optional, for the AI assistant)
+
+### Local setup
 
 ```bash
-# start Ollama locally
-$ ollama serve
-
-# pull a lightweight model
-$ ollama pull gemma3:1b
+git clone https://github.com/myx-codes/ROOMi-backend.git
+cd ROOMi-backend
+npm install
+cp .env.example .env      # then fill in the values below
 ```
 
-Environment variables:
+### Environment variables
+
+| Variable | Description |
+|---|---|
+| `MONGO_URL` | MongoDB connection string |
+| `PORT_API` | Port for the GraphQL API |
+| `PORT_BATCH` | Port for the batch application |
+| `SECRET_TOKEN` | JWT signing secret |
+| `AI_PROVIDER` | `ollama` or another OpenAI-compatible provider |
+| `AI_BASE_URL` | Provider base URL, e.g. `http://localhost:11434/v1` |
+| `AI_MODEL` | Model name, e.g. `gemma3:1b` |
+
+See `.env.example` for the complete list.
+
+### Run
 
 ```bash
-AI_PROVIDER=ollama
-AI_BASE_URL=http://localhost:11434/v1
-AI_MODEL=gemma3:1b
+npm run start:dev            # API, watch mode
+npm run start:dev:batch      # batch worker, watch mode
 ```
 
-If you run the Docker stack, the `roomi-ollama` service is included in `docker-compose.yml`.
-
-## Compile and run the project
+### AI assistant (optional)
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+ollama serve
+ollama pull gemma3:1b
 ```
 
-## Run tests
+When running the Docker stack, the `roomi-ollama` service is included in `docker-compose.yml`.
+
+### Production
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npm run build
+npm run start:prod           # node dist/apps/roomi-api/main
+npm run start:prod:batch     # node dist/apps/roomi-batch/main
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### Tests
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+npm run test          # unit
+npm run test:e2e      # end-to-end
+npm run test:cov      # coverage
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+---
 
-## Resources
+## Repository layout
 
-Check out a few resources that may come in handy when working with NestJS:
+```
+apps/
+  roomi-api/          GraphQL API application
+    src/
+      components/     14 domain modules
+      database/       Mongoose connection and models
+      libs/           shared enums, DTOs, types, utilities
+      schemas/        Mongoose schemas
+      socket/         Socket.IO gateway
+  roomi-batch/        scheduled job application
+src/generated/        GraphQL codegen output
+codegen.ts            GraphQL Codegen configuration
+Dockerfile
+docker-compose.yml
+```
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+---
 
-## Support
+## Author
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
-
-cd ~/ROOMi/backend/ROOMi
+**Mukhammadyusuf Kholbajonov** — Backend / Full-Stack Engineer
+MSc Computer Engineering, Dongguk University, Seoul
+[GitHub](https://github.com/myx-codes)
